@@ -1,3 +1,5 @@
 clean_scrape_gcp/
 __pycache__/
 *.pyc
+service-account-key.json
+minified-key.json

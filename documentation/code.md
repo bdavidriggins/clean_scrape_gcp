@@ -23,3 +23,7 @@ git push -u origin maaster
 
 
 
+# Push to github
+git add .
+git commit -m "Trigger deployment to App Engine"
+git push origin master

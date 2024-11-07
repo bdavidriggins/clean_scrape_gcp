@@ -10,19 +10,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2. Verify that the GCP_SA_KEY secret is set
+      - name: Verify GCP_SA_KEY Secret
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "Error: GCP_SA_KEY secret is not set."
+            exit 1
+          else
+            echo "GCP_SA_KEY secret is set."
+          fi
+
+      # 3. Authenticate with Google Cloud using credentials_json
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      # 4. Verify Authentication
+      - name: Verify Authentication
+        run: |
+          gcloud auth list
+          gcloud config list
+
+      # 5. Set up Cloud SDK with the specified project ID
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # Optionally, specify the service account if needed
+          # service_account_key: ${{ secrets.GCP_SA_KEY }}
 
+      # 6. Display Current gcloud Configuration (For Debugging)
+      - name: Display gcloud Configuration
+        run: |
+          echo "Current gcloud project:"
+          gcloud config get-value project
+          echo "Active account:"
+          gcloud auth list --filter=status:ACTIVE --format="value(account)"
+          echo "App Engine region:"
+          gcloud app describe --format="value(locationId)"
+
+      # 7. Deploy to App Engine with Enhanced Logging
       - name: Deploy to App Engine
         run: |
+          set -x  # Enable command tracing
           gcloud app deploy --quiet
+          set +x  # Disable command tracing
+
+      # 8. Post-Deployment Verification (Optional)
+      - name: Verify Deployment
+        run: |
+          gcloud app browse --no-launch-browser

@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: Production  # Specify the environment here
 
     steps:
       # 1. Checkout the repository code
@@ -41,8 +42,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          # Optionally, specify the service account if needed
-          # service_account_key: ${{ secrets.GCP_SA_KEY }}
 
       # 6. Display Current gcloud Configuration (For Debugging)
       - name: Display gcloud Configuration

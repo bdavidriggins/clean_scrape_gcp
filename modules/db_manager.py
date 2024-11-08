@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Union
 import datetime
 import os
 from google.auth.credentials import AnonymousCredentials
-from google.cloud import firestore, storage
+
 from google.cloud import pubsub_v1
 from google.cloud import storage
 
@@ -222,18 +222,21 @@ def get_audio_files_info() -> List[Dict]:
     Retrieve information about all audio files in the database.
     """
     try:
-        articles = db.collection('articles').where('audio_file_path', '!=', None).get()
+        # First, get all articles
+        articles = db.collection('articles').get()
         audio_files_info = []
         for doc in articles:
             data = doc.to_dict()
-            audio_files_info.append({
-                'id': doc.id,
-                'article_id': doc.id,
-                'article_title': data.get('title', 'Unknown'),
-                'audio_file_path': data.get('audio_file_path'),
-                'created_at': data.get('created_at'),
-                'updated_at': data.get('audio_updated_at')
-            })
+            # Only include articles that have an audio_file_path
+            if 'audio_file_path' in data and data['audio_file_path'] is not None:
+                audio_files_info.append({
+                    'id': doc.id,
+                    'article_id': doc.id,
+                    'article_title': data.get('title', 'Unknown'),
+                    'audio_file_path': data['audio_file_path'],
+                    'created_at': data.get('created_at'),
+                    'updated_at': data.get('audio_updated_at')
+                })
         logger.info(f"Retrieved information for {len(audio_files_info)} audio files.")
         return audio_files_info
     except Exception as e:

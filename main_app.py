@@ -38,7 +38,11 @@ def run_all_tests():
     test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
 
 # Run tests at startup
-run_all_tests()
+try:
+    run_all_tests()
+except Exception as e:
+    logger.error(f"Error during startup: {e}")
+
 
 @app.route('/')
 def hello():
@@ -92,5 +96,5 @@ def show_env():
     })
 
 if __name__ == '__main__':
-    logger.debug("__main__")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # app.run(host='0.0.0.0', port=5000, debug=True)
+    pass

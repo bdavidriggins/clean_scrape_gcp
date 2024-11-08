@@ -22,45 +22,20 @@ from google.cloud import storage
 
 # # FireStore
 # Get the database name from environment variables
+PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 DATABASE_NAME = os.getenv('FIRESTORE_DATABASE', 'clean-scrape-articles')
 
 # Initialize Firestore client with the specific database
-db = firestore.Client().database(DATABASE_NAME)
+db = firestore.Client(project=PROJECT_ID, database=DATABASE_NAME)
 
 
 # # Cloud Storage setup
-# if os.getenv('USE_MOCK_STORAGE') == 'true':
-#     from mock_storage import storage_client, bucket
-# else:
-from google.cloud import storage
+GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
 storage_client = storage.Client()
-bucket = storage_client.bucket(os.environ.get('GCS_BUCKET_NAME'))
-
-
-
-
-# Initialize the logger for database operations
-logger = setup_logger("database")
-
-# Initialize Firestore client
-db = firestore.Client()
-
-# Initialize Cloud Storage client
-# Determine the environment
-ENV = os.getenv('ENV', 'local')
-
-# Set up GCS bucket name based on environment
-if ENV == 'production':
-    GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
-else:
-    GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files-test')
-
-# Initialize clients
-storage_client = storage.Client()
-db = firestore.Client()
 bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
-logger.debug(f"Using GCS bucket: {GCS_BUCKET_NAME}")
+
+logger = setup_logger("database")
 
 
 

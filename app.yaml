@@ -6,5 +6,4 @@ handlers:
 env_variables:
   GCS_BUCKET_NAME: 'clean-scrape-audio-files'
   GOOGLE_CLOUD_PROJECT: 'resewrch-agent'
-  ENV: 'production'
   FIRESTORE_DATABASE: 'clean-scrape-articles'

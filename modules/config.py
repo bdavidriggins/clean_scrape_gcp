@@ -213,7 +213,6 @@ try:
         
     # Log successful initialization
     logger.info("Configuration module fully initialized")
-    logger.debug(f"Model info: {NLP.meta}")
     
 except Exception as e:
     logger.critical(f"Failed to initialize configuration: {str(e)}")

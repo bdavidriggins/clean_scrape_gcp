@@ -11,7 +11,7 @@ from modules.db_manager import (
     get_audio_file_by_article_id, update_audio_file, delete_audio_file,
     get_audio_files_info
 )
-from local_function import app as local_function_app
+
 from modules.common_logger import setup_logger
 
 logger = setup_logger("test_harness")

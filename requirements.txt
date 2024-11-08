@@ -8,3 +8,4 @@ google-cloud-logging
 Werkzeug
 python-dotenv
 wave
+google-auth

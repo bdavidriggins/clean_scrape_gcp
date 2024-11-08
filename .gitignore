@@ -9,4 +9,5 @@ clip_code.py
 local_function.py
 mock_storage.py
 firestore.rules
-.env
+helper scripts/test_connections.py
+helper scripts/get_log_files.py

@@ -119,8 +119,6 @@ def test_audio_functions():
 if __name__ == "__main__":
     # logger.debug environment variables for verification
     logger.debug(f"GOOGLE_CLOUD_PROJECT: {os.getenv('GOOGLE_CLOUD_PROJECT')}")
-    logger.debug(f"FIRESTORE_EMULATOR_HOST: {os.getenv('FIRESTORE_EMULATOR_HOST')}")
-    logger.debug(f"PUBSUB_EMULATOR_HOST: {os.getenv('PUBSUB_EMULATOR_HOST')}")
     logger.debug(f"GCS_BUCKET_NAME: {os.getenv('GCS_BUCKET_NAME')}")
 
     logger.debug("\nTesting db_manager...")

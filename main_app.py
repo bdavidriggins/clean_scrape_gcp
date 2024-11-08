@@ -89,8 +89,6 @@ def run_tests():
 def show_env():
     return jsonify({
         'GOOGLE_CLOUD_PROJECT': os.getenv('GOOGLE_CLOUD_PROJECT'),
-        'FIRESTORE_EMULATOR_HOST': os.getenv('FIRESTORE_EMULATOR_HOST'),
-        'PUBSUB_EMULATOR_HOST': os.getenv('PUBSUB_EMULATOR_HOST'),
         'GCS_BUCKET_NAME': os.getenv('GCS_BUCKET_NAME'),
         'USE_MOCK_STORAGE': os.getenv('USE_MOCK_STORAGE')
     })

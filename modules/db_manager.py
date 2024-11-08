@@ -15,24 +15,50 @@ from typing import Optional, List, Dict, Union
 import datetime
 import os
 from google.auth.credentials import AnonymousCredentials
+from google.oauth2 import service_account
+import json
 
-from google.cloud import pubsub_v1
-from google.cloud import storage
-
+# Determine if we're running on App Engine
+is_appengine = os.getenv('GAE_ENV', '').startswith('standard')
 
 # # FireStore
 # Get the database name from environment variables
 PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 DATABASE_NAME = os.getenv('FIRESTORE_DATABASE', 'clean-scrape-articles')
-
-# Initialize Firestore client with the specific database
-db = firestore.Client(project=PROJECT_ID, database=DATABASE_NAME)
-
-
-# # Cloud Storage setup
 GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
-storage_client = storage.Client()
+
+
+# Initialize clients based on environment
+if is_appengine:
+    # On App Engine, use default credentials
+    db = firestore.Client(project=PROJECT_ID, database=DATABASE_NAME)
+    storage_client = storage.Client()
+else:
+    # Clear any local emulator settings
+    os.environ.pop('FIRESTORE_EMULATOR_HOST', None)
+    os.environ.pop('GOOGLE_CLOUD_FIRESTORE_EMULATOR_HOST', None)
+
+    # Locally, use service account key
+    json_path = os.path.join(os.getcwd(), 'service-account-key.json')
+    with open(json_path, 'r') as file:
+        service_account_info = json.load(file)
+    
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info,
+        scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    
+    db = firestore.Client(
+        project=PROJECT_ID,
+        credentials=credentials,
+        database=DATABASE_NAME
+    )
+    storage_client = storage.Client(project=PROJECT_ID, credentials=credentials)
+
+
 bucket = storage_client.bucket(GCS_BUCKET_NAME)
+
+
 
 
 logger = setup_logger("database")

@@ -26,7 +26,17 @@ class WebScraperTestCase(unittest.TestCase):
         self.assertEqual(result, "Extracted content")
 
     def test_process_text(self):
-        test_text = "This is a test sentence. Another sentence here."
+        test_text = '''
+The US government has brought charges against an Iranian man in connection with an alleged plot to assassinate Donald Trump before he was elected as the next president.
+
+The Department of Justice on Friday unsealed an indictment against Farhad Shakeri, 51, alleging he was tasked with “providing a plan” to kill Trump.
+
+The US government said Mr Shakeri has not been arrested and is believed to be in Iran.
+
+In a criminal complaint filed in Manhattan court, prosecutors allege that an official in Iran’s Revolutionary Guard directed Mr Shakeri in September to devise a plan to surveil and kill Trump.
+
+“The Justice Department has charged an asset of the Iranian regime who was tasked by the regime to direct a network of criminal associates to further Iran’s assassination plots against its targets, including President-elect Donald Trump,” US Attorney General Merrick Garland said in a statement.
+                '''
         result = self.scraper.process_text(test_text)
         self.assertIsNotNone(result)
         self.assertIn("This is a test sentence.", result)

@@ -1,3 +1,4 @@
+# pip install -r requirements.txt
 # Web framework and server
 Flask
 gunicorn
@@ -7,6 +8,7 @@ google-cloud-firestore
 google-cloud-storage
 google-cloud-pubsub
 google-cloud-logging
+vertexai
 
 # Utilities
 Werkzeug

@@ -204,75 +204,13 @@ OUTPUT FORMAT:
         logger.critical(f"Critical error during configuration initialization: {str(e)}")
         raise
 
-def initialize_nlp():
-    """
-    Initialize spaCy NLP model.
-
-    This function attempts to load the specified spaCy model. If the model is not found,
-    it attempts to install the model and load it again.
-
-    Returns:
-        spacy.language.Language: Loaded spaCy model.
-
-    Raises:
-        RuntimeError: If the spaCy model installation fails.
-        subprocess.SubprocessError: If there is an error during the subprocess call.
-        Exception: For any other unexpected errors during NLP initialization.
-    """
-    logger.info("Initializing spaCy NLP model")
-    
-    try:
-        # Try loading the model
-        logger.debug("Attempting to load spaCy model 'en_core_web_sm'")
-        nlp = spacy.load('en_core_web_sm')
-        logger.info("Successfully loaded spaCy model")
-        return nlp
-        
-    except OSError as e:
-        logger.warning(f"spaCy model not found: {str(e)}")
-        logger.info("Attempting to install spaCy model")
-        
-        try:
-            # Attempt to install the model
-            logger.debug("Running spaCy download command")
-            result = subprocess.run(
-                ['python', '-m', 'spacy', 'download', 'en_core_web_sm'],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode != 0:
-                logger.error(f"Failed to install spaCy model: {result.stderr}")
-                raise RuntimeError(f"Model installation failed: {result.stderr}")
-                
-            logger.info("Successfully installed spaCy model")
-            
-            # Try loading again
-            nlp = spacy.load('en_core_web_sm')
-            logger.info("Successfully loaded newly installed spaCy model")
-            return nlp
-            
-        except subprocess.SubprocessError as e:
-            logger.error(f"Error during model installation: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error during model installation: {str(e)}")
-            raise
-            
-    except Exception as e:
-        logger.error(f"Unexpected error initializing NLP: {str(e)}")
-        raise
 
 # Main initialization block
 try:
     # Initialize configuration
     APP_PATH, DB_NAME, HEADERS, MODEL_NAME_FLASH, ARTICLE_CLEAN_PROMPT, ARTICLE_IMPROVE_READABILITY_PROMPT = initialize_config()
     logger.info("Configuration initialized successfully")
-    
-    # Initialize NLP
-    NLP = initialize_nlp()
-    logger.info("NLP model initialized successfully")
-    
+        
     # Log successful initialization
     logger.info("Configuration module fully initialized")
     logger.debug(f"Model info: {NLP.meta}")

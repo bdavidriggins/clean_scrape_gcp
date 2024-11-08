@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 import sys
 import io
+import unittest
 
 from modules.common_logger import setup_logger
 
@@ -16,6 +17,8 @@ app = Flask(__name__)
 
 # Global variable to store test results
 test_results = {}
+
+
 
 def capture_test_output(test_func):
     # Capture stdout
@@ -32,10 +35,23 @@ def capture_test_output(test_func):
     finally:
         sys.stdout = old_stdout
 
+
+
 def run_all_tests():
     global test_results
     test_results['db_manager_tests'] = capture_test_output(test_db_manager)
     test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
+    test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
+
+def run_web_scraper_tests():
+    tests = unittest.TestLoader().loadTestsFromName('test_web_scraper')
+    result = unittest.TextTestRunner(verbosity=2).run(tests)
+    return result
+
+
+
+
+
 
 # Run tests at startup
 try:

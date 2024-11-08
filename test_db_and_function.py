@@ -77,8 +77,8 @@ def test_db_manager():
         logger.debug(f"- {article.get('id', 'ID not found')}")
 
     # Test delete_article_by_id
-    #delete_success = delete_article_by_id(last_article_id)
-    #logger.debug(f"Article deletion success: {delete_success}")
+    delete_success = delete_article_by_id(last_article_id)
+    logger.debug(f"Article deletion success: {delete_success}")
 
     logger.info(f"Article database tests completed.")
 
@@ -110,8 +110,8 @@ def test_audio_functions():
     logger.debug(f"Number of audio files: {len(audio_files_info)}")
 
     # Clean up
-    #delete_audio_file(article_id)
-    #delete_article_by_id(article_id)
+    delete_audio_file(article_id)
+    delete_article_by_id(article_id)
 
     logger.info("Audio file tests completed.")
 

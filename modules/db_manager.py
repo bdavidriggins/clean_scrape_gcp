@@ -10,6 +10,7 @@ and Google Cloud Storage for audio file storage.
 
 from google.cloud import firestore
 from google.cloud import storage
+from google.cloud import exceptions as gcp_exceptions
 from modules.common_logger import setup_logger
 from typing import Optional, List, Dict, Union
 import datetime
@@ -155,17 +156,23 @@ def update_article_by_id(article_id, content, title=None, author=None, descripti
 
 def delete_article_by_id(article_id):
     """
-    Delete an article from the database by its ID, along with its associated audio file.
+    Delete an article from the database by its ID, along with its associated audio file if it exists.
     """
     try:
         # Delete the article from Firestore
         db.collection('articles').document(str(article_id)).delete()
+        logger.info(f"Article {article_id} deleted from Firestore.")
 
-        # Delete associated audio file from Cloud Storage
-        blob = bucket.blob(f'audio_files/{article_id}.mp3')
-        blob.delete()
+        # Attempt to delete associated audio file from Cloud Storage
+        try:
+            blob = bucket.blob(f'audio_files/{article_id}.mp3')
+            blob.delete()
+            logger.info(f"Associated audio file for article {article_id} deleted successfully.")
+        except gcp_exceptions.NotFound:
+            logger.info(f"No associated audio file found for article {article_id}.")
+        except Exception as audio_error:
+            logger.warning(f"Error deleting audio file for article {article_id}: {str(audio_error)}")
 
-        logger.info(f"Article {article_id} and its associated audio file deleted successfully.")
         return True
     except Exception as e:
         logger.error(f"Error deleting article {article_id}: {str(e)}")

@@ -1,11 +1,24 @@
-#pip install -r requirements.txt
+# Web framework and server
 Flask
 gunicorn
+
+# Google Cloud services
 google-cloud-firestore
 google-cloud-storage
 google-cloud-pubsub
 google-cloud-logging
+
+# Utilities
 Werkzeug
 python-dotenv
 wave
 google-auth
+beautifulsoup4  # For HTML parsing
+spacy
+requests-html  # For HTML requests and rendering
+trafilatura  # For web scraping and text extraction
+python-dateutil  # For parsing dates
+
+# Networking and retries
+urllib3
+requests

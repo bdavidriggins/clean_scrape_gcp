@@ -14,7 +14,8 @@ python-dotenv
 wave
 google-auth
 beautifulsoup4  # For HTML parsing
-spacy
+spacy==3.8.0
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz
 requests-html  # For HTML requests and rendering
 trafilatura  # For web scraping and text extraction
 python-dateutil  # For parsing dates

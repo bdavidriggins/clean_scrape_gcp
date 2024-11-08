@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import io
 import wave
 import struct
 import math
@@ -11,7 +12,7 @@ from modules.db_manager import (
     get_audio_file_by_article_id, update_audio_file, delete_audio_file,
     get_audio_files_info
 )
-
+from google.cloud import storage
 from modules.common_logger import setup_logger
 
 logger = setup_logger("test_harness")
@@ -19,19 +20,19 @@ logger = setup_logger("test_harness")
 # Load environment variables from .env file
 load_dotenv()
 
-def create_dummy_wav_file(filename, duration=1, freq=440):
-    """Create a dummy WAV file for testing."""
-    samplerate = 44100
-    amplitude = 32767  # Max amplitude for 16-bit audio
-
-    t = [i / samplerate for i in range(int(samplerate * duration))]
-    samples = [int(amplitude * math.sin(2 * math.pi * freq * t)) for t in t]
-
-    with wave.open(filename, 'wb') as wav_file:
+def create_dummy_audio_bytes(duration=1, freq=440, samplerate=44100):
+    """Create dummy audio data as bytes."""
+    t = [float(i) / samplerate for i in range(int(samplerate * duration))]
+    samples = [int(32767 * math.sin(2 * math.pi * freq * t)) for t in t]
+    
+    buffer = io.BytesIO()
+    with wave.open(buffer, 'wb') as wav_file:
         wav_file.setnchannels(1)
         wav_file.setsampwidth(2)
         wav_file.setframerate(samplerate)
         wav_file.writeframes(struct.pack('h' * len(samples), *samples))
+    
+    return buffer.getvalue()
 
 def test_db_manager():
     logger.debug("\nTesting Article Database Functions:")
@@ -83,18 +84,15 @@ def test_db_manager():
 
 def test_audio_functions():
     logger.debug("\nTesting Audio File Functions:")
-
+    
     # Create a dummy article for audio testing
     save_article(content="Audio test content", title="Audio Test Article")
     article_id = get_last_article_id()
 
-    # Create a dummy WAV file
-    dummy_wav_file = "dummy_audio.wav"
-    create_dummy_wav_file(dummy_wav_file)
+    # Create dummy audio data
+    audio_content = create_dummy_audio_bytes()
 
     # Test create_audio_file
-    with open(dummy_wav_file, 'rb') as audio_file:
-        audio_content = audio_file.read()
     create_success = create_audio_file(article_id, audio_content)
     logger.debug(f"Audio file creation success: {create_success}")
 
@@ -103,20 +101,17 @@ def test_audio_functions():
     logger.debug(f"Audio file retrieved: {retrieved_audio is not None}")
 
     # Test update_audio_file
-    update_success = update_audio_file(article_id, audio_content)
+    new_audio_content = create_dummy_audio_bytes(duration=2)  # Create a different audio file
+    update_success = update_audio_file(article_id, new_audio_content)
     logger.debug(f"Audio file update success: {update_success}")
 
     # Test get_audio_files_info
     audio_files_info = get_audio_files_info()
     logger.debug(f"Number of audio files: {len(audio_files_info)}")
 
-    # Test delete_audio_file
-    #delete_success = delete_audio_file(article_id)
-    #logger.debug(f"Audio file deletion success: {delete_success}")
-
     # Clean up
-    os.remove(dummy_wav_file)
-    delete_article_by_id(article_id)
+    #delete_audio_file(article_id)
+    #delete_article_by_id(article_id)
 
     logger.info("Audio file tests completed.")
 

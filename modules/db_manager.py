@@ -17,6 +17,7 @@ import os
 from google.auth.credentials import AnonymousCredentials
 from google.cloud import firestore, storage
 from google.cloud import pubsub_v1
+from google.cloud import storage
 
 
 # Firestore setup
@@ -35,7 +36,6 @@ else:
 from google.cloud import storage
 storage_client = storage.Client()
 bucket = storage_client.bucket(os.environ.get('GCS_BUCKET_NAME'))
-
 
 # Pub/Sub setup
 if os.getenv('PUBSUB_EMULATOR_HOST'):
@@ -175,16 +175,15 @@ def create_audio_file(article_id: str, audio_content: bytes) -> bool:
     Save a new audio file associated with an article in Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.mp3')
-        blob.upload_from_string(audio_content, content_type='audio/mpeg')
-
+        blob = bucket.blob(f'audio_files/{article_id}.wav')
+        blob.upload_from_string(audio_content, content_type='audio/wav')
+        
         # Update the article document in Firestore with the audio file reference
         doc_ref = db.collection('articles').document(str(article_id))
         doc_ref.update({
-            'audio_file_path': f'audio_files/{article_id}.mp3',
+            'audio_file_path': f'audio_files/{article_id}.wav',
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
-
         logger.info(f"Audio file created for article ID {article_id}.")
         return True
     except Exception as e:
@@ -196,7 +195,7 @@ def get_audio_file_by_article_id(article_id: str) -> Optional[bytes]:
     Retrieve the audio file associated with a specific article from Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.mp3')
+        blob = bucket.blob(f'audio_files/{article_id}.wav')
         audio_content = blob.download_as_bytes()
         logger.info(f"Audio file retrieved for article ID {article_id}.")
         return audio_content
@@ -209,15 +208,14 @@ def update_audio_file(article_id: str, new_audio_content: bytes) -> bool:
     Update the audio file for a specific article in Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.mp3')
-        blob.upload_from_string(new_audio_content, content_type='audio/mpeg')
-
+        blob = bucket.blob(f'audio_files/{article_id}.wav')
+        blob.upload_from_string(new_audio_content, content_type='audio/wav')
+        
         # Update the article document in Firestore
         doc_ref = db.collection('articles').document(str(article_id))
         doc_ref.update({
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
-
         logger.info(f"Audio file updated for article ID {article_id}.")
         return True
     except Exception as e:
@@ -229,23 +227,22 @@ def delete_audio_file(article_id: str) -> bool:
     Delete the audio file associated with a specific article from Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.mp3')
+        blob = bucket.blob(f'audio_files/{article_id}.wav')
         blob.delete()
-
+        
         # Update the article document in Firestore
         doc_ref = db.collection('articles').document(str(article_id))
         doc_ref.update({
             'audio_file_path': firestore.DELETE_FIELD,
             'audio_updated_at': firestore.DELETE_FIELD
         })
-
         logger.info(f"Audio file deleted for article ID {article_id}.")
         return True
     except Exception as e:
         logger.error(f"Error deleting audio file for article ID {article_id}: {e}")
         return False
 
-def get_audio_files_info() -> list:
+def get_audio_files_info() -> List[Dict]:
     """
     Retrieve information about all audio files in the database.
     """
@@ -258,6 +255,7 @@ def get_audio_files_info() -> list:
                 'id': doc.id,
                 'article_id': doc.id,
                 'article_title': data.get('title', 'Unknown'),
+                'audio_file_path': data.get('audio_file_path'),
                 'created_at': data.get('created_at'),
                 'updated_at': data.get('audio_updated_at')
             })

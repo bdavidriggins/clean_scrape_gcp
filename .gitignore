@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 service-account-key.json
 minified-key.json
+clip_code.py
+*.log
+*.json
+local_function.py
+mock_storage.py
+firestore.rules
+.env

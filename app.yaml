@@ -1,6 +1,7 @@
 runtime: python312
-entrypoint: gunicorn -b :$PORT app:app
-
+entrypoint: gunicorn -b :$PORT main_app:app
 handlers:
   - url: /.*
     script: auto
+env_variables:
+  GCS_BUCKET_NAME: 'clean-scrape-audio-files'

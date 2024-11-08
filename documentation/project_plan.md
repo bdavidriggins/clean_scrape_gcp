@@ -372,3 +372,171 @@ gsutil ls "gs://$STORAGE_BUCKET/"
 # -------------------------------
 
 echo "App Engine setup and deployment script executed successfully."
+
+
+
+
+
+
+
+
+#Setup GCP Emulators
+
+Certainly! Here's a comprehensive setup documentation for your local development environment, mimicking the Google Cloud setup for your Flask application with Firestore, Cloud Storage, and Cloud Functions:
+
+# Local Development Setup Documentation
+
+## Prerequisites
+
+1. Python 3.7 or higher
+2. Node.js and npm
+3. Google Cloud SDK
+4. Firebase CLI
+
+## Step 1: Environment Setup
+
+1. Create a new directory for your project:
+   ```
+   mkdir my_gcp_flask_project
+   cd my_gcp_flask_project
+   ```
+
+2. Create a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows use: venv\Scripts\activate
+   ```
+
+3. Install required Python packages:
+   ```
+   pip install flask google-cloud-firestore google-cloud-storage google-cloud-pubsub
+   ```
+
+## Step 2: Google Cloud Project Setup
+
+1. Create a new Google Cloud Project (or use an existing one)
+2. Enable Firestore, Cloud Storage, and Pub/Sub APIs in your Google Cloud Console
+
+## Step 3: Local Emulator Setup
+
+1. Install Firebase CLI:
+   ```
+   npm install -g firebase-tools
+   ```
+
+2. Log in to Firebase:
+   ```
+   firebase login
+   ```
+
+3. Initialize Firebase in your project:
+   ```
+   firebase init
+   ```
+   Select Firestore and emulators when prompted.
+
+4. Install the Pub/Sub emulator:
+   ```
+   gcloud components install pubsub-emulator
+   gcloud components update
+   ```
+
+## Step 4: Configuration
+
+1. Create a `.env` file in your project root:
+   ```
+   GOOGLE_CLOUD_PROJECT=your-project-id
+   FIRESTORE_EMULATOR_HOST=localhost:8080
+   PUBSUB_EMULATOR_HOST=localhost:8085
+   GCS_BUCKET_NAME=your-bucket-name
+   USE_MOCK_STORAGE=true
+   ```
+
+2. Create a `config.py` file to load these environment variables.
+
+## Step 5: Application Code
+
+1. Create `main_app.py` for your Flask application:
+   ```python
+   from flask import Flask, request
+   from google.cloud import pubsub_v1
+   import os
+   import json
+
+   app = Flask(__name__)
+
+   # Pub/Sub setup
+   publisher = pubsub_v1.PublisherClient()
+   topic_path = publisher.topic_path(os.getenv('GOOGLE_CLOUD_PROJECT'), 'articles-topic')
+
+   @app.route('/create_article', methods=['POST'])
+   def create_article():
+       # Your article creation logic here
+       article_id = "generated-id"  # Replace with actual ID generation
+       
+       # Publish message to Pub/Sub
+       message = json.dumps({'article_id': article_id}).encode('utf-8')
+       future = publisher.publish(topic_path, message)
+       
+       return {'status': 'success', 'message': f'Article created and processing initiated. Message ID: {future.result()}'}
+
+   if __name__ == '__main__':
+       app.run(debug=True)
+   ```
+
+2. Create `local_function.py` as shown in the previous response.
+
+3. Create `db_manager.py` for database operations (as shown in previous responses).
+
+## Step 6: Running the Application
+
+1. Start the Firestore emulator:
+   ```
+   firebase emulators:start --only firestore
+   ```
+
+2. In a new terminal, start the Pub/Sub emulator:
+   ```
+   gcloud beta emulators pubsub start
+   ```
+
+3. In another terminal, set environment variables and run your Flask app:
+   ```
+   source .env  # On Windows, use: set -a; . .env; set +a
+   python main_app.py
+   ```
+
+4. In a fourth terminal, run your local Cloud Function emulator:
+   ```
+   source .env  # On Windows, use: set -a; . .env; set +a
+   python local_function.py
+   ```
+
+## Step 7: Testing
+
+1. Use tools like Postman or curl to send requests to your Flask app:
+   ```
+   curl -X POST http://localhost:5000/create_article -H "Content-Type: application/json" -d '{"title":"Test Article","content":"This is a test."}'
+   ```
+
+2. Check the logs in your `local_function.py` terminal to see if the message was processed.
+
+3. Verify data in the Firestore emulator using the Firebase Console.
+
+## Step 8: Cleanup
+
+When you're done developing:
+
+1. Stop all running processes (Flask app, local_function.py, emulators)
+2. Deactivate your virtual environment:
+   ```
+   deactivate
+   ```
+
+## Additional Notes
+
+- Replace mock implementations with real ones when deploying to Google Cloud.
+- Always test in a staging environment before deploying to production.
+- Keep your `.env` file and any credential files out of version control.
+
+This setup allows you to develop and test your Google Cloud-based Flask application locally, using emulators and mocks to simulate the cloud environment. Remember to adjust configurations and implementations as necessary when moving to the actual Google Cloud environment.

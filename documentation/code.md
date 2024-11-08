@@ -27,3 +27,23 @@ git push -u origin maaster
 git add .
 git commit -m "Trigger deployment to App Engine"
 git push origin master
+
+
+
+# Use Google Cloud emulators:
+Google provides emulators for several services that you can run locally: 
+
+a) Firestore Emulator: 
+
+    Install the Firebase CLI: 
+    npm install -g firebase-tools
+    
+    Start the emulator: 
+    firebase emulators:start --only firestore --project=local-test-project
+
+b) Pub/Sub Emulator: 
+
+    Install the Google Cloud SDK
+    Start the emulator: 
+    gcloud beta emulators pubsub start
+

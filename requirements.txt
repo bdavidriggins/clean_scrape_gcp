@@ -1,3 +1,10 @@
 #pip install -r requirements.txt
 Flask
 gunicorn
+google-cloud-firestore
+google-cloud-storage
+google-cloud-pubsub
+google-cloud-logging
+Werkzeug
+python-dotenv
+wave

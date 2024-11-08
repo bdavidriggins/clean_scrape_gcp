@@ -22,6 +22,7 @@ git remote add origin https://github.com/bdavidriggins/clean_scrape_gcp.git
 git push -u origin maaster
 
 
+
 # Push to github
 git add .
 git commit -m "Trigger deployment to App Engine"

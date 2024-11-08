@@ -20,14 +20,13 @@ from google.cloud import pubsub_v1
 from google.cloud import storage
 
 
-# Firestore setup
-if os.getenv('FIRESTORE_EMULATOR_HOST'):
-    db = firestore.Client(
-        project=os.getenv('GOOGLE_CLOUD_PROJECT'),
-        credentials=AnonymousCredentials(),
-    )
-else:
-    db = firestore.Client()
+# # FireStore
+# Get the database name from environment variables
+DATABASE_NAME = os.getenv('FIRESTORE_DATABASE', 'clean-scrape-articles')
+
+# Initialize Firestore client with the specific database
+db = firestore.Client().database(DATABASE_NAME)
+
 
 # # Cloud Storage setup
 # if os.getenv('USE_MOCK_STORAGE') == 'true':
@@ -37,17 +36,6 @@ from google.cloud import storage
 storage_client = storage.Client()
 bucket = storage_client.bucket(os.environ.get('GCS_BUCKET_NAME'))
 
-# Pub/Sub setup
-if os.getenv('PUBSUB_EMULATOR_HOST'):
-    publisher = pubsub_v1.PublisherClient(
-        credentials=AnonymousCredentials(),
-    )
-    subscriber = pubsub_v1.SubscriberClient(
-        credentials=AnonymousCredentials(),
-    )
-else:
-    publisher = pubsub_v1.PublisherClient()
-    subscriber = pubsub_v1.SubscriberClient()
 
 
 
@@ -58,9 +46,21 @@ logger = setup_logger("database")
 db = firestore.Client()
 
 # Initialize Cloud Storage client
+# Determine the environment
+ENV = os.getenv('ENV', 'local')
+
+# Set up GCS bucket name based on environment
+if ENV == 'production':
+    GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
+else:
+    GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files-test')
+
+# Initialize clients
 storage_client = storage.Client()
-bucket_name = os.environ.get('GCS_BUCKET_NAME', 'your-default-bucket-name')
-bucket = storage_client.bucket(bucket_name)
+db = firestore.Client()
+bucket = storage_client.bucket(GCS_BUCKET_NAME)
+
+logger.debug(f"Using GCS bucket: {GCS_BUCKET_NAME}")
 
 
 

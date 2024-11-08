@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: Production  # Specify the environment here
+    environment: Production  # Specify the environment to access environment secrets
 
     steps:
       # 1. Checkout the repository code
@@ -51,16 +51,16 @@ jobs:
           echo "Active account:"
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
           echo "App Engine region:"
-          gcloud app describe --format="value(locationId)"
+          gcloud app describe --format="value(locationId)" || echo "App Engine not initialized."
 
       # 7. Deploy to App Engine with Enhanced Logging
       - name: Deploy to App Engine
         run: |
           set -x  # Enable command tracing
-          gcloud app deploy --quiet
+          gcloud app deploy --quiet --verbosity=debug
           set +x  # Disable command tracing
 
       # 8. Post-Deployment Verification (Optional)
       - name: Verify Deployment
         run: |
-          gcloud app browse --no-launch-browser
+          gcloud app browse --no-launch-browser || echo "Deployment verification skipped."

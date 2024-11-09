@@ -1,5 +1,6 @@
 runtime: python312
 entrypoint: gunicorn -b :$PORT main_app:app
+instance_class: F4
 handlers:
   - url: /.*
     script: auto

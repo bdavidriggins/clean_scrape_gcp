@@ -517,8 +517,13 @@ class TextToSpeech:
             # Check if adding this sentence would exceed the byte limit
             potential_chunk = current_chunk + sentence
             if len(potential_chunk.encode('utf-8')) > max_bytes:
-                # If the sentence itself is too long, split by words
-                if not current_chunk:
+                # If the current chunk is not empty, add it to chunks
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+                
+                # If the sentence itself is too long, split it
+                if len(sentence.encode('utf-8')) > max_bytes:
                     words = sentence.split()
                     temp_chunk = ""
                     for word in words:
@@ -530,7 +535,6 @@ class TextToSpeech:
                             temp_chunk += " " + word if temp_chunk else word
                     current_chunk = temp_chunk
                 else:
-                    chunks.append(current_chunk.strip())
                     current_chunk = sentence
             else:
                 current_chunk = potential_chunk
@@ -539,6 +543,9 @@ class TextToSpeech:
             chunks.append(current_chunk.strip())
         
         logger.debug(f"Text split into {len(chunks)} chunks")
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"Chunk {i+1} size: {len(chunk.encode('utf-8'))} bytes")
+        
         return chunks
 
 

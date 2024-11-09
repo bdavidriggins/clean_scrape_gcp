@@ -182,16 +182,22 @@ def delete_article_by_id(article_id):
         logger.error(f"Error deleting article {article_id}: {str(e)}")
         return False
 
-def create_audio_file(article_id: str, m4a_audio: BytesIO) -> bool:
+
+def create_audio_file(article_id: str, m4a_audio: Union[BytesIO, bytes]) -> bool:
     """
     Save a new M4A audio file associated with an article in Cloud Storage.
     
     :param article_id: The ID of the article
-    :param m4a_audio: BytesIO object containing the M4A audio data
+    :param m4a_audio: BytesIO or bytes object containing the M4A audio data
     :return: True if successful, False otherwise
     """
     try:
         blob = bucket.blob(f'audio_files/{article_id}.m4a')
+        
+        # Convert bytes to BytesIO if necessary
+        if isinstance(m4a_audio, bytes):
+            m4a_audio = BytesIO(m4a_audio)
+        
         m4a_audio.seek(0)
         blob.upload_from_file(m4a_audio, content_type='audio/mp4')
         
@@ -207,25 +213,39 @@ def create_audio_file(article_id: str, m4a_audio: BytesIO) -> bool:
         logger.error(f"Error creating M4A audio file for article ID {article_id}: {e}")
         return False
 
-def get_audio_file_by_article_id(article_id: str) -> Optional[bytes]:
+
+def get_audio_file_by_article_id(article_id: str) -> Optional[BytesIO]:
     """
     Retrieve the M4A audio file associated with a specific article from Cloud Storage.
+    
+    :param article_id: The ID of the article
+    :return: BytesIO object containing the audio file data, or None if not found
     """
     try:
         blob = bucket.blob(f'audio_files/{article_id}.m4a')
         audio_content = blob.download_as_bytes()
         logger.info(f"M4A audio file retrieved for article ID {article_id}.")
-        return audio_content
+        return BytesIO(audio_content)
     except Exception as e:
         logger.error(f"Error retrieving M4A audio file for article ID {article_id}: {e}")
         return None
+    
 
-def update_audio_file(article_id: str, new_audio_content: BytesIO) -> bool:
+def update_audio_file(article_id: str, new_audio_content: Union[BytesIO, bytes]) -> bool:
     """
     Update the M4A audio file for a specific article in Cloud Storage.
+    
+    :param article_id: The ID of the article
+    :param new_audio_content: BytesIO or bytes object containing the new M4A audio data
+    :return: True if successful, False otherwise
     """
     try:
         blob = bucket.blob(f'audio_files/{article_id}.m4a')
+        
+        # Convert bytes to BytesIO if necessary
+        if isinstance(new_audio_content, bytes):
+            new_audio_content = BytesIO(new_audio_content)
+        
         new_audio_content.seek(0)
         blob.upload_from_file(new_audio_content, content_type='audio/mp4')
         

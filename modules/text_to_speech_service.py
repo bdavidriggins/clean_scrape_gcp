@@ -38,6 +38,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import subprocess
 import tempfile
 from io import BytesIO
+import wave
 
 
 from modules.db_manager import (
@@ -324,87 +325,50 @@ class TextToSpeech:
 
     def _combine_audio_files(self, file_paths: List[str]) -> Optional[bytes]:
         """Combines multiple audio files using Google Cloud Storage."""
-        temp_files = []
-        buffer = None
-        ffmpeg_path = os.getenv('FFMPEG_PATH', './ffmpeg')  # Set the path to FFmpeg
-
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(self.bucket_name)
+        combined_audio = BytesIO()
+        
         try:
-            # Sanitize and validate input paths
-            valid_paths = [path for path in file_paths if self.bucket.blob(self.get_temp_gcs_path(path)).exists()]
-            if not valid_paths:
-                logger.error("No valid input files provided")
-                return None
+            # Open a wave writer for the combined audio
+            with wave.open(combined_audio, 'wb') as outwave:
+                for i, file_path in enumerate(file_paths):
+                    blob = bucket.blob(self.get_temp_gcs_path(file_path))
+                    if not blob.exists():
+                        logger.error(f"Blob does not exist: {file_path}")
+                        continue
 
-            # Create temporary files
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_output_path = self.get_temp_gcs_path(f'combined_output_{timestamp}.wav')
-            concat_file_path = self.get_temp_gcs_path(f'concat_list_{timestamp}.txt')
-            temp_files.extend([temp_output_path, concat_file_path])
+                    # Download the audio file to memory
+                    audio_data = BytesIO()
+                    blob.download_to_file(audio_data)
+                    audio_data.seek(0)
 
-            # Write concat file to Cloud Storage
-            concat_content = '\n'.join([f"file 'gs://{self.bucket_name}/{path}'" for path in valid_paths])
-            self.bucket.blob(concat_file_path).upload_from_string(concat_content)
+                    # Read the wave file
+                    with wave.open(audio_data, 'rb') as inwave:
+                        if i == 0:
+                            # Set parameters for the output wave file
+                            outwave.setnchannels(inwave.getnchannels())
+                            outwave.setsampwidth(inwave.getsampwidth())
+                            outwave.setframerate(inwave.getframerate())
 
-            # Define input and output URIs
-            input_uri = f"gs://{self.bucket_name}/{concat_file_path}"
-            output_uri = f"gs://{self.bucket_name}/{temp_output_path}"
+                        # Write audio frames
+                        outwave.writeframes(inwave.readframes(inwave.getnframes()))
 
-            # Prepare FFmpeg command
-            cmd = [
-                ffmpeg_path, "-f", "concat", "-safe", "0", "-i", input_uri,
-                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1", output_uri
-            ]
-            logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
-
-            # Start the FFmpeg process
-            ffmpeg_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            # Manage FFmpeg process
-            with self._manage_ffmpeg_process(ffmpeg_process):
-                try:
-                    out, err = ffmpeg_process.communicate(timeout=300)
-                    if ffmpeg_process.returncode != 0:
-                        raise subprocess.CalledProcessError(ffmpeg_process.returncode, cmd, output=out, stderr=err)
-                except subprocess.TimeoutExpired:
-                    raise TimeoutError("FFmpeg process timed out")
-
-            # Verify and read output
-            output_blob = self.bucket.blob(temp_output_path)
-            if not output_blob.exists():
-                raise FileNotFoundError("Output file was not created in Cloud Storage")
-
-            # Read with memory management
-            buffer = io.BytesIO()
-            output_blob.download_to_file(buffer)
-            buffer.seek(0)
-
-            return buffer.getvalue()
+            # Get the combined audio data
+            combined_audio.seek(0)
+            return combined_audio.getvalue()
 
         except Exception as e:
-            logger.error(f"Error in audio combination: {str(e)}", exc_info=True)
+            logger.error(f"Error in _combine_audio_files: {str(e)}", exc_info=True)
             return None
 
         finally:
-            # Cleanup resources
-            if buffer and not buffer.closed:
+            # Clean up temporary files in GCS
+            for file_path in file_paths:
                 try:
-                    buffer.close()
+                    bucket.blob(self.get_temp_gcs_path(file_path)).delete()
                 except Exception as e:
-                    logger.warning(f"Error closing buffer: {e}")
-
-            # Cleanup temp files in Cloud Storage
-            for temp_file in temp_files:
-                try:
-                    self.bucket.blob(temp_file).delete()
-                    logger.debug(f"Removed temporary file from Cloud Storage: {temp_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to remove temp file {temp_file} from Cloud Storage: {e}")
-
-            # Cleanup old files
-            try:
-                self._cleanup_old_temp_files()
-            except Exception as e:
-                logger.warning(f"Failed to clean up old temp files: {e}")
+                    logger.warning(f"Failed to delete temporary file {file_path}: {str(e)}")
 
 
 

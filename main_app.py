@@ -40,10 +40,10 @@ def capture_test_output(test_func):
 
 def run_all_tests():
     global test_results
-    # test_results['db_manager_tests'] = capture_test_output(test_db_manager)
-    # test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
-    # test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
-    # test_results['google_api_interface_tests'] = capture_test_output(run_google_api_interface_tests)
+    test_results['db_manager_tests'] = capture_test_output(test_db_manager)
+    test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
+    test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
+    test_results['google_api_interface_tests'] = capture_test_output(run_google_api_interface_tests)
     test_results['text_to_speech_tests'] = capture_test_output(run_text_to_speech_tests)
 
 def run_text_to_speech_tests():

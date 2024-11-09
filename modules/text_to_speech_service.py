@@ -364,11 +364,17 @@ class TextToSpeech:
 
         finally:
             # Clean up temporary files in GCS
-            for file_path in file_paths:
-                try:
-                    bucket.blob(self.get_temp_gcs_path(file_path)).delete()
-                except Exception as e:
-                    logger.warning(f"Failed to delete temporary file {file_path}: {str(e)}")
+            if file_paths:
+                prefix = os.path.dirname(self.get_temp_gcs_path(file_paths[0])) + '/'
+                blobs = bucket.list_blobs(prefix=prefix)
+                for blob in blobs:
+                    try:
+                        blob.delete()
+                        logger.debug(f"Deleted temporary file: {blob.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temporary file {blob.name}: {str(e)}")
+                
+                logger.info(f"Cleanup completed for prefix: {prefix}")
 
 
 

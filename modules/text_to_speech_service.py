@@ -40,6 +40,18 @@ import tempfile
 from io import BytesIO
 import wave
 
+from pydub import AudioSegment
+import stat
+
+# Constants for ffmpeg
+FFMPEG_PATH = os.path.join(os.getcwd(), 'ffmpeg')
+AudioSegment.converter = FFMPEG_PATH
+
+# Ensure ffmpeg is executable
+st = os.stat(FFMPEG_PATH)
+os.chmod(FFMPEG_PATH, st.st_mode | stat.S_IEXEC)
+
+
 
 from modules.db_manager import (
     get_article_by_id, 
@@ -575,15 +587,22 @@ def text_to_speech(article_id) -> bool:
             logger.error("Text-to-speech conversion failed - audio_response is None")
             return False
 
+        # Convert WAV to M4A
+        logger.info("Converting WAV to M4A")
+        wav_audio = io.BytesIO(audio_response)
+        audio = AudioSegment.from_wav(wav_audio)
+        m4a_audio = io.BytesIO()
+        audio.export(m4a_audio, format="ipod", bitrate="64k")
+        m4a_audio.seek(0)
+        
         # Log audio response details
-        audio_size = len(audio_response) if audio_response else 0
-        logger.info(f"Audio conversion completed. Audio size: {audio_size} bytes")
+        audio_size = m4a_audio.getbuffer().nbytes
+        logger.info(f"Audio conversion completed. M4A audio size: {audio_size} bytes")
 
-        # Save audio to database
-        logger.info(f"Attempting to save audio file for article ID {article_id}")
-        success = create_audio_file(article_id, audio_response)
+        logger.info(f"Attempting to save M4A audio file for article ID {article_id}")
+        success = create_audio_file(article_id, m4a_audio)
         if not success:
-            logger.error("Failed to save audio to the database.")
+            logger.error("Failed to save M4A audio to the database.")
             return False
 
         logger.info(f"Audio successfully saved for article ID {article_id}")

@@ -30,4 +30,4 @@ requests
 pydub
 tenacity
 psutil
-ffmpeg-python
+miniaudio

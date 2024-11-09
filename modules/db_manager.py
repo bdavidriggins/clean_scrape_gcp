@@ -18,6 +18,10 @@ import os
 from google.auth.credentials import AnonymousCredentials
 from google.oauth2 import service_account
 import json
+from io import BytesIO
+from google.cloud import storage
+from google.cloud import firestore
+
 
 # Determine if we're running on App Engine
 is_appengine = os.getenv('GAE_ENV', '').startswith('standard')
@@ -178,24 +182,29 @@ def delete_article_by_id(article_id):
         logger.error(f"Error deleting article {article_id}: {str(e)}")
         return False
 
-def create_audio_file(article_id: str, audio_content: bytes) -> bool:
+def create_audio_file(article_id: str, m4a_audio: BytesIO) -> bool:
     """
-    Save a new audio file associated with an article in Cloud Storage.
+    Save a new M4A audio file associated with an article in Cloud Storage.
+    
+    :param article_id: The ID of the article
+    :param m4a_audio: BytesIO object containing the M4A audio data
+    :return: True if successful, False otherwise
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.wav')
-        blob.upload_from_string(audio_content, content_type='audio/wav')
+        blob = bucket.blob(f'audio_files/{article_id}.m4a')
+        m4a_audio.seek(0)
+        blob.upload_from_file(m4a_audio, content_type='audio/mp4')
         
         # Update the article document in Firestore with the audio file reference
         doc_ref = db.collection('articles').document(str(article_id))
         doc_ref.update({
-            'audio_file_path': f'audio_files/{article_id}.wav',
+            'audio_file_path': f'audio_files/{article_id}.m4a',
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
-        logger.info(f"Audio file created for article ID {article_id}.")
+        logger.info(f"M4A audio file created for article ID {article_id}.")
         return True
     except Exception as e:
-        logger.error(f"Error creating audio file for article ID {article_id}: {e}")
+        logger.error(f"Error creating M4A audio file for article ID {article_id}: {e}")
         return False
 
 def get_audio_file_by_article_id(article_id: str) -> Optional[bytes]:

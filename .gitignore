@@ -12,3 +12,5 @@ firestore.rules
 helper scripts/test_connections.py
 helper scripts/get_log_files.py
 ffmpeg-release-i686-static.tar.xz
+helper scripts/audio_files_tdM7LZEgEUql6ELbtSJF.wav
+helper scripts/convert_wav_to_m4a.py

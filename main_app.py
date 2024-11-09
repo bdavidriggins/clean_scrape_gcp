@@ -12,19 +12,17 @@ application's functionality.
 from flask import Flask, render_template, request, jsonify, g, redirect, send_file
 from modules.config import MODEL_NAME_FLASH, ARTICLE_CLEAN_PROMPT, ARTICLE_IMPROVE_READABILITY_PROMPT
 from modules.web_scraper import WebScraper
-from modules.google_api_interface import get_content_response
+from modules.google_api_interface import ContentGenerator
 from modules.common_logger import setup_logger
 from modules.text_to_speech_service import text_to_speech
 from modules.db_manager import (
-    init_db, 
-    get_db, 
-    close_db, 
     get_all_articles, 
     get_article_by_id,
     save_article,
     update_article_by_id,
     delete_article_by_id,
-    get_audio_file_by_article_id
+    get_audio_file_by_article_id,
+    get_articles_with_audio_status as db_get_articles_with_audio_status
 )
 import io
 
@@ -34,8 +32,6 @@ logger = setup_logger("main_app")
 # Initialize the Flask application
 app = Flask(__name__)
 
-# Register the database close function with Flask to ensure proper teardown
-app.teardown_appcontext(close_db)
 
 @app.route('/')
 def index():
@@ -60,7 +56,7 @@ def get_articles():
         logger.error(f"Error fetching articles: {e}")
         return jsonify({'error': 'Failed to retrieve articles'}), 500
 
-@app.route('/get_article/<int:article_id>')
+@app.route('/get_article/<article_id>')
 def get_article(article_id):
     """
     Retrieve a specific article by its ID and return it as JSON.
@@ -75,7 +71,7 @@ def get_article(article_id):
         return jsonify({'error': 'Failed to retrieve article'}), 500
 
 
-@app.route('/tts_article/<int:article_id>')
+@app.route('/tts_article/<article_id>')
 def tts_article(article_id):
     """
     Convert article text to speech by its ID and return whether it was successful
@@ -140,16 +136,16 @@ def process():
             logger.error("Failed to extract content")
             return jsonify({'error': 'Failed to extract content'}), 400
 
+        content_generator = ContentGenerator()
+
         full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=article_data.get('content'))        
-        llm_response = get_content_response(
-            user_prompt=full_prompt,
-            model_name=MODEL_NAME_FLASH
+        llm_response = content_generator.generate_content(
+            user_prompt=full_prompt
         )
 
         full_prompt = ARTICLE_IMPROVE_READABILITY_PROMPT.format(article_text=llm_response)        
-        llm_response = get_content_response(
-            user_prompt=full_prompt,
-            model_name=MODEL_NAME_FLASH
+        llm_response = content_generator.generate_content(
+            user_prompt=full_prompt
         )
        
 
@@ -176,7 +172,7 @@ def process():
         logger.exception("An unexpected error occurred during processing")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/update_article/<int:article_id>', methods=['PUT'])
+@app.route('/update_article/<article_id>', methods=['PUT'])
 def update_article(article_id):
     """
     Update an existing article's content, title, author, and description by its ID.
@@ -216,7 +212,7 @@ def update_article(article_id):
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
-@app.route('/delete_article/<int:article_id>', methods=['DELETE'])
+@app.route('/delete_article/<article_id>', methods=['DELETE'])
 def delete_article(article_id):
     """
     Delete an article by its ID.
@@ -232,38 +228,29 @@ def delete_article(article_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get_articles_with_audio_status')
-def get_articles_with_audio_status():
+def get_articles_with_audio_status_route():
     """
-    Retrieve all articles with their audio status
+    Retrieve all articles with their audio status.
+    This function delegates the database retrieval to db_manager.py.
     """
     try:
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute('''
-            SELECT 
-                a.*,
-                CASE WHEN af.id IS NOT NULL THEN 1 ELSE 0 END as has_audio
-            FROM articles a
-            LEFT JOIN audio_files af ON a.id = af.article_id
-            ORDER BY a.id DESC
-        ''')
-        articles = cursor.fetchall()
+        articles = db_get_articles_with_audio_status()
         
         return jsonify([{
-            'id': row['id'],
-            'url': row['url'],
-            'content': row['content'],
-            'title': row['title'],
-            'author': row['author'],
-            'date': row['date'],
-            'description': row['description'],
-            'has_audio': bool(row['has_audio'])
-        } for row in articles])
+            'id': article['id'],
+            'url': article['url'],
+            'content': article['content'],
+            'title': article['title'],
+            'author': article['author'],
+            'date': article['date'],
+            'description': article['description'],
+            'has_audio': article['has_audio']
+        } for article in articles])
     except Exception as e:
         logger.error(f"Error retrieving articles with audio status: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/audio_player/<int:article_id>')
+@app.route('/audio_player/<article_id>')
 def audio_player(article_id):
     """
     Render the audio player page for a specific article
@@ -278,7 +265,7 @@ def audio_player(article_id):
         logger.error(f"Error loading audio player: {e}")
         return redirect('/')
 
-@app.route('/get_audio/<int:article_id>')
+@app.route('/get_audio/<article_id>')
 def get_audio(article_id):
     """
     Stream the audio file for a specific article
@@ -286,15 +273,20 @@ def get_audio(article_id):
     try:
         audio_content = get_audio_file_by_article_id(article_id)
         if audio_content is None:
+            logger.error(f"Audio not found for article ID {article_id}")
             return jsonify({'error': 'Audio not found'}), 404
-            
+        
+        # Directly pass the BytesIO object without wrapping
         return send_file(
-            io.BytesIO(audio_content),
-            mimetype='audio/wav'
+            audio_content,
+            mimetype='audio/mp4',
+            as_attachment=False,    # Stream the audio instead of downloading
+            download_name=f"{article_id}.m4a"  # Optional: Only needed if as_attachment=True
         )
     except Exception as e:
-        logger.error(f"Error streaming audio: {e}")
+        logger.error(f"Error streaming audio for article ID {article_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/log_viewer')
 def log_viewer():
@@ -312,10 +304,7 @@ def clear_log():
 
 
 if __name__ == '__main__':
-    try:
-        with app.app_context():
-            init_db()
-            logger.info("Database initialized successfully")
+    try:        
         app.run(host='0.0.0.0', port=5000, debug=True)
     except Exception as e:
         logger.critical(f"Failed to start the application: {e}")

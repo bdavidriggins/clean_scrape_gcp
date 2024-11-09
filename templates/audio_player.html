@@ -55,17 +55,22 @@
             {% endif %}
         </div>
         <audio controls class="audio-player" id="audioPlayer">
-            <source src="{{ url_for('get_audio', article_id=article.id) }}" type="audio/wav">
+            <source src="{{ url_for('get_audio', article_id=article.id) }}" type="audio/mp4">
             Your browser does not support the audio element.
         </audio>
     </div>
     <script>
-        // Restore scroll position when returning to articles page
         window.onload = function() {
             const audioPlayer = document.getElementById('audioPlayer');
             audioPlayer.addEventListener('ended', function() {
                 // Optional: Auto-return to articles page when audio finishes
                 // window.location.href = '/';
+            });
+
+            // Error handling for audio playback
+            audioPlayer.addEventListener('error', function(e) {
+                console.error('Error loading audio:', e);
+                alert('There was an error loading the audio. Please try again later.');
             });
         };
     </script>

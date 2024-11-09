@@ -159,10 +159,10 @@ async function loadArticles() {
             
             // Determine which button to show based on audio status
             const audioButton = article.has_audio 
-                ? `<button onclick="playAudio(${article.id})" class="btn btn-secondary">
+                ? `<button onclick="playAudio('${article.id}')" class="btn btn-secondary">
                      <img src="/static/feather/play.svg" alt="play" aria-hidden="true" class="icon-white">
                    </button>`
-                : `<button onclick="ttsArticleContent(${article.id})" class="btn btn-secondary">
+                : `<button onclick="ttsArticleContent('${article.id}')" class="btn btn-secondary">
                      <img src="/static/feather/mic.svg" alt="convert to speech" aria-hidden="true" class="icon-white">
                    </button>`;
             
@@ -171,13 +171,13 @@ async function loadArticles() {
                 <span class="article-name">${article.title}</span>
                 <div class="article-buttons">
                     ${audioButton}
-                    <button onclick="copyArticleContent(${article.id})" class="btn btn-secondary">
+                    <button onclick="copyArticleContent('${article.id}')" class="btn btn-secondary">
                         <img src="/static/feather/copy.svg" alt="copy" aria-hidden="true" class="icon-white">
                     </button>
-                    <button onclick="viewArticle(${article.id})" class="btn btn-secondary">
+                    <button onclick="viewArticle('${article.id}')" class="btn btn-secondary">
                         <img src="/static/feather/book-open.svg" alt="view" aria-hidden="true" class="icon-white">
                     </button>
-                    <button onclick="deleteArticle(${article.id})" class="btn btn-danger">
+                    <button onclick="deleteArticle('${article.id}')" class="btn btn-danger">
                         <img src="/static/feather/delete.svg" alt="del" aria-hidden="true" class="icon-white">
                     </button>
                 </div>
@@ -294,7 +294,7 @@ function viewArticle(id) {
 // And add this new function to handle the copying:
 function copyArticleContent(id) {
     // Find the button using the article ID
-    const buttonSelector = `button[onclick="copyArticleContent(${id})"]`;
+    const buttonSelector = `button[onclick="copyArticleContent('${id}')"]`;
     const button = document.querySelector(buttonSelector);
 
     fetch(`/get_article/${id}`)
@@ -325,7 +325,7 @@ function copyArticleContent(id) {
 
 //Get the article ID and send it to ge the article TTS'd
 function ttsArticleContent(id) {
-    const buttonSelector = `button[onclick="ttsArticleContent(${id})"]`;
+    const buttonSelector = `button[onclick="ttsArticleContent('${id}')"]`;
     const button = document.querySelector(buttonSelector);
     
     if (button) {

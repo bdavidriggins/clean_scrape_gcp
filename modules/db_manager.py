@@ -98,6 +98,38 @@ def get_article_by_id(article_id):
         logger.error(f"Error retrieving article {article_id}: {str(e)}")
         return None
 
+def get_articles_with_audio_status() -> List[Dict]:
+    """
+    Retrieve all articles with their audio status.
+    Determines if an article has associated audio by checking the 'audio_file_path' field.
+    Orders articles by creation date, descending.
+    
+    :return: List of articles with 'has_audio' boolean field.
+    """
+    try:
+        articles_ref = db.collection('articles').order_by('created_at', direction=firestore.Query.DESCENDING)
+        articles = articles_ref.stream()
+        articles_with_status = []
+        for doc in articles:
+            data = doc.to_dict()
+            has_audio = bool(data.get('audio_file_path'))
+            article = {
+                'id': doc.id,  # Use document ID directly
+                'url': data.get('url'),
+                'content': data.get('content'),
+                'title': data.get('title'),
+                'author': data.get('author'),
+                'date': data.get('date'),
+                'description': data.get('description'),
+                'has_audio': has_audio
+            }
+            articles_with_status.append(article)
+        logger.debug(f"Retrieved {len(articles_with_status)} articles with audio status.")
+        return articles_with_status
+    except Exception as e:
+        logger.error(f"Error retrieving articles with audio status: {e}")
+        return []
+    
 def save_article(content, title="", author="", date="", description="", url=None, source_type="url"):
     """
     Save a new article to the database.

@@ -47,3 +47,13 @@ b) Pub/Sub Emulator:
     Start the emulator: 
     gcloud beta emulators pubsub start
 
+
+
+
+set GOOGLE_APPLICATION_CREDENTIALS="/home/bdavidriggins/Projects/clean_scrape_gcp/service-account-key.json"
+
+
+# # FFMpeg
+wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz
+tar -xf ffmpeg-release-i686-static.tar.xz --strip-components=1 --wildcards '*/ffmpeg' -C .
+chmod +x ffmpeg  # Ensure the binary is executable

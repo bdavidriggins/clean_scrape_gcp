@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import sys
 import io
 import unittest
+from test_text_to_speech import TestTextToSpeech
 
 from modules.common_logger import setup_logger
 
@@ -43,7 +44,12 @@ def run_all_tests():
     test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
     test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
     test_results['google_api_interface_tests'] = capture_test_output(run_google_api_interface_tests)
+    test_results['text_to_speech_tests'] = capture_test_output(run_text_to_speech_tests)
 
+def run_text_to_speech_tests():
+    tests = unittest.TestLoader().loadTestsFromTestCase(TestTextToSpeech)
+    result = unittest.TextTestRunner(verbosity=2).run(tests)
+    return result
 
 def run_web_scraper_tests():
     tests = unittest.TestLoader().loadTestsFromName('test_web_scraper')

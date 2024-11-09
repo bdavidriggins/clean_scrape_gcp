@@ -11,3 +11,4 @@ mock_storage.py
 firestore.rules
 helper scripts/test_connections.py
 helper scripts/get_log_files.py
+ffmpeg-release-i686-static.tar.xz

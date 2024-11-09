@@ -21,11 +21,10 @@ import vertexai
 from vertexai.generative_models import GenerativeModel, SafetySetting
 from google.oauth2 import service_account
 from modules.common_logger import setup_logger
-
+from google.auth import default
 
 # Fixed Variables
 PROJECT_ID = 'resewrch-agent'  # Replace with your GCP project ID
-LOCATION = 'us-central1'
 DEFAULT_MODEL_NAME = 'gemini-1.5-flash-002'
 
 GENERATION_CONFIG = {
@@ -55,15 +54,9 @@ class ContentGenerator:
         self.generation_config = GENERATION_CONFIG
         self.safety_settings = self.default_safety_settings()
         self.model_name = model_name or DEFAULT_MODEL_NAME
-        
-        # Get the path to the JSON file in the same directory as this script
-        json_path = os.path.join(os.getcwd(), 'service-account-key.json')
 
-        # Load the JSON credentials from the file
+        # Use default application credentials
         try:
-            with open(json_path, 'r') as file:
-                service_account_info = json.load(file)
-            self.credentials = service_account.Credentials.from_service_account_info(service_account_info)
             self._initialize_vertexai()
         except Exception as e:
             self.logger.error(f"Failed to load service account credentials: {e}", exc_info=True)
@@ -100,7 +93,7 @@ class ContentGenerator:
         Initializes the Vertex AI client and loads the generative model.
         """
         try:
-            vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=self.credentials)
+            vertexai.init(project=PROJECT_ID)
             self.model = GenerativeModel(
                 self.model_name
             )

@@ -82,7 +82,6 @@ def test_db_manager():
 
     logger.info(f"Article database tests completed.")
 
-def test_audio_functions():
     logger.debug("\nTesting Audio File Functions:")
     
     # Create a dummy article for audio testing
@@ -123,6 +122,3 @@ if __name__ == "__main__":
 
     logger.debug("\nTesting db_manager...")
     test_db_manager()
-
-    logger.debug("\nTesting audio functions...")
-    test_audio_functions()

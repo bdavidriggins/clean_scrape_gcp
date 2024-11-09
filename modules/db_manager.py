@@ -169,7 +169,7 @@ def delete_article_by_id(article_id):
 
         # Attempt to delete associated audio file from Cloud Storage
         try:
-            blob = bucket.blob(f'audio_files/{article_id}.mp3')
+            blob = bucket.blob(f'audio_files/{article_id}.m4a')
             blob.delete()
             logger.info(f"Associated audio file for article {article_id} deleted successfully.")
         except gcp_exceptions.NotFound:
@@ -209,42 +209,43 @@ def create_audio_file(article_id: str, m4a_audio: BytesIO) -> bool:
 
 def get_audio_file_by_article_id(article_id: str) -> Optional[bytes]:
     """
-    Retrieve the audio file associated with a specific article from Cloud Storage.
+    Retrieve the M4A audio file associated with a specific article from Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.wav')
+        blob = bucket.blob(f'audio_files/{article_id}.m4a')
         audio_content = blob.download_as_bytes()
-        logger.info(f"Audio file retrieved for article ID {article_id}.")
+        logger.info(f"M4A audio file retrieved for article ID {article_id}.")
         return audio_content
     except Exception as e:
-        logger.error(f"Error retrieving audio file for article ID {article_id}: {e}")
+        logger.error(f"Error retrieving M4A audio file for article ID {article_id}: {e}")
         return None
 
-def update_audio_file(article_id: str, new_audio_content: bytes) -> bool:
+def update_audio_file(article_id: str, new_audio_content: BytesIO) -> bool:
     """
-    Update the audio file for a specific article in Cloud Storage.
+    Update the M4A audio file for a specific article in Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.wav')
-        blob.upload_from_string(new_audio_content, content_type='audio/wav')
+        blob = bucket.blob(f'audio_files/{article_id}.m4a')
+        new_audio_content.seek(0)
+        blob.upload_from_file(new_audio_content, content_type='audio/mp4')
         
         # Update the article document in Firestore
         doc_ref = db.collection('articles').document(str(article_id))
         doc_ref.update({
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
-        logger.info(f"Audio file updated for article ID {article_id}.")
+        logger.info(f"M4A audio file updated for article ID {article_id}.")
         return True
     except Exception as e:
-        logger.error(f"Error updating audio file for article ID {article_id}: {e}")
+        logger.error(f"Error updating M4A audio file for article ID {article_id}: {e}")
         return False
 
 def delete_audio_file(article_id: str) -> bool:
     """
-    Delete the audio file associated with a specific article from Cloud Storage.
+    Delete the M4A audio file associated with a specific article from Cloud Storage.
     """
     try:
-        blob = bucket.blob(f'audio_files/{article_id}.wav')
+        blob = bucket.blob(f'audio_files/{article_id}.m4a')
         blob.delete()
         
         # Update the article document in Firestore
@@ -253,10 +254,10 @@ def delete_audio_file(article_id: str) -> bool:
             'audio_file_path': firestore.DELETE_FIELD,
             'audio_updated_at': firestore.DELETE_FIELD
         })
-        logger.info(f"Audio file deleted for article ID {article_id}.")
+        logger.info(f"M4A audio file deleted for article ID {article_id}.")
         return True
     except Exception as e:
-        logger.error(f"Error deleting audio file for article ID {article_id}: {e}")
+        logger.error(f"Error deleting M4A audio file for article ID {article_id}: {e}")
         return False
 
 def get_audio_files_info() -> List[Dict]:

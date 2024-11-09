@@ -605,7 +605,7 @@ def text_to_speech(article_id) -> bool:
             logger.error("Failed to save M4A audio to the database.")
             return False
 
-        logger.info(f"Audio successfully saved for article ID {article_id}")
+        logger.info(f"M4A audio successfully saved for article ID {article_id}")
         return True
 
     except Exception as e:

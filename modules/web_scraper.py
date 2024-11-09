@@ -43,6 +43,7 @@ class WebScraper:
             'retry_delay': 2,
             'verify_ssl': True,
             'min_content_length': 1000,
+            'max_sentence_length': 300,
             'max_content_length': 5000000,  # 5MB
         }
         
@@ -218,7 +219,7 @@ class WebScraper:
             for paragraph in paragraphs:
                 if paragraph.strip():
                     doc = self.nlp(paragraph)
-                    processed_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+                    processed_sentences = [self.split_long_sentences(sent.text.strip()) for sent in doc.sents if sent.text.strip()]
                     processed_paragraphs.append(' '.join(processed_sentences))
                 else:
                     processed_paragraphs.append('')
@@ -236,6 +237,20 @@ class WebScraper:
         except Exception as e:
             self.logger.error(f"Error processing text: {str(e)}", exc_info=True)
             return None
+
+
+    def split_long_sentences(self, text: str) -> str:
+        max_length = self.config['max_sentence_length']
+        doc = self.nlp(text)
+        split_sentences = []
+        for sent in doc.sents:
+            if len(sent.text) > max_length:
+                # Split long sentence at logical points (e.g., commas, conjunctions)
+                sub_sentences = re.split(r'[,;]|\sand\s|\sbut\s', sent.text)
+                split_sentences.extend([s.strip() for s in sub_sentences if s.strip()])
+            else:
+                split_sentences.append(sent.text.strip())
+        return ' '.join(split_sentences)
 
     def extract_article_metadata(self, soup: BeautifulSoup) -> Dict[str, str]:
         """

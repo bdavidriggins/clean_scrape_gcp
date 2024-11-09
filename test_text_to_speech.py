@@ -20,7 +20,7 @@ class TestTextToSpeech(unittest.TestCase):
         scraped_article = self.scraper.scrape_article(url=self.test_url)
         self.assertIsNotNone(scraped_article, "Failed to scrape the article")
 
-        full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=scraped_article)        
+        full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=scraped_article['content'])        
         llm_response = self.content_generator.generate_content(full_prompt)
 
         full_prompt = ARTICLE_IMPROVE_READABILITY_PROMPT.format(article_text=llm_response)        
@@ -28,7 +28,7 @@ class TestTextToSpeech(unittest.TestCase):
 
         # Step 2: Save the article to the database
         article_save_success = save_article(
-            content=scraped_article['content'],
+            content=llm_response,
             title=scraped_article['title'],
             author=scraped_article.get('author', ''),
             date=scraped_article.get('date', ''),

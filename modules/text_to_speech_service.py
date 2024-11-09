@@ -37,6 +37,7 @@ import socket
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import subprocess
 import tempfile
+from io import BytesIO
 
 
 from modules.db_manager import (
@@ -274,7 +275,12 @@ class TextToSpeech:
             
             # Write to Cloud Storage
             blob = self.bucket.blob(self.get_temp_gcs_path(output_file))
-            blob.upload_from_string(audio_content)
+            with BytesIO(audio_content) as audio_file:
+                blob.upload_from_file(
+                    audio_file,
+                    content_type='audio/wav',
+                    rewind=True
+                )
             
             logger.info(f"Successfully processed chunk {chunk_index}/{total_chunks}")
             return True

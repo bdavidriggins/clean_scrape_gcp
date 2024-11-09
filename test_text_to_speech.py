@@ -71,7 +71,7 @@ class TestTextToSpeech(unittest.TestCase):
         self.assertIsNotNone(audio_content, "Failed to retrieve the audio file")
 
         # Step 5: Validate the audio content
-        audio = AudioSegment.from_file(io.BytesIO(audio_content), format="mp4")
+        audio = AudioSegment.from_file(audio_content, format="m4a") 
         self.assertGreater(len(audio), 0, "Audio file is empty")
         self.assertGreater(audio.duration_seconds, 1, "Audio duration is too short")
 

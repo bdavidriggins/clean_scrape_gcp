@@ -21,6 +21,7 @@ from typing import Optional, Dict, Any, Generator
 from urllib.parse import urlparse
 from dateutil import parser
 import json
+from typing import Optional, Tuple
 
 # Third-party imports
 import requests
@@ -47,7 +48,8 @@ class WebScraper:
         
         # Update configuration with user-provided settings
         self.config = {**default_config, **(config or {})}
-        
+        self.cloud_run_url = "https://scrape-webpage-1098359986679.us-south1.run.app" 
+
         # Initialize spaCy NLP model
         try:
             self.nlp = initialize_nlp()
@@ -69,18 +71,36 @@ class WebScraper:
         ]
         return random.choice(user_agents)
 
+
     def fetch_webpage(self, url: str) -> Optional[str]:
         """
-        Fetch webpage content with retry mechanism.
+        Fetch webpage content with retry mechanism, using both local method and Cloud Run service.
         Args:
             url (str): The URL to fetch
         Returns:
-            Optional[str]: HTML content if successfully retrieved, None otherwise
+            Optional[Tuple[str, str]]: Tuple of (HTML content, source) if successfully retrieved, None otherwise
         """
         self.logger.info(f"Fetching webpage: {url}")
         
+        local_content = self._fetch_local(url)
+        cloud_run_content = self._fetch_cloud_run(url)
+        
+        if local_content and cloud_run_content:
+            if len(local_content) >= len(cloud_run_content):
+                return local_content
+            else:
+                return cloud_run_content
+        elif local_content:
+            return local_content
+        elif cloud_run_content:
+            return cloud_run_content
+        
+        self.logger.error("Failed to retrieve content from both local and Cloud Run methods")
+        return None
+
+    def _fetch_local(self, url: str) -> Optional[str]:
         for attempt in range(self.config['retry_attempts']):
-            self.logger.info(f"Attempt {attempt + 1} of {self.config['retry_attempts']}")
+            self.logger.info(f"Local attempt {attempt + 1} of {self.config['retry_attempts']}")
             
             try:
                 headers = {'User-Agent': self._get_random_user_agent()}
@@ -89,20 +109,51 @@ class WebScraper:
                 
                 content = response.text
                 if self._is_valid_content(content):
-                    self.logger.info("Successfully retrieved content")
+                    self.logger.info("Successfully retrieved content locally")
                     return content
                 
-                self.logger.warning("Retrieved content is not valid")
+                self.logger.warning("Retrieved local content is not valid")
                     
             except requests.RequestException as e:
-                self.logger.warning(f"Fetch failed: {str(e)}")
+                self.logger.warning(f"Local fetch failed: {str(e)}")
             
             if attempt < self.config['retry_attempts'] - 1:
                 wait_time = self._calculate_backoff(attempt)
-                self.logger.info(f"Retrying after {wait_time} seconds...")
+                self.logger.info(f"Retrying local fetch after {wait_time} seconds...")
                 time.sleep(wait_time)
         
-        self.logger.error("Failed to retrieve content after all attempts")
+        self.logger.error("Failed to retrieve content locally after all attempts")
+        return None
+
+    def _fetch_cloud_run(self, url: str) -> Optional[str]:
+        for attempt in range(self.config['retry_attempts']):
+            self.logger.info(f"Cloud Run attempt {attempt + 1} of {self.config['retry_attempts']}")
+            
+            try:
+                params = {'url': url}
+                response = requests.get(self.cloud_run_url, params=params, timeout=self.config['timeout'])
+                response.raise_for_status()
+                
+                result = response.json()
+                if result['status'] == 'success':
+                    content = result['content']
+                    if self._is_valid_content(content):
+                        self.logger.info("Successfully retrieved content from Cloud Run")
+                        return content
+                    
+                    self.logger.warning("Retrieved Cloud Run content is not valid")
+                else:
+                    self.logger.warning(f"Cloud Run fetch failed: {result.get('error', 'Unknown error')}")
+                    
+            except requests.RequestException as e:
+                self.logger.warning(f"Cloud Run fetch failed: {str(e)}")
+            
+            if attempt < self.config['retry_attempts'] - 1:
+                wait_time = self._calculate_backoff(attempt)
+                self.logger.info(f"Retrying Cloud Run fetch after {wait_time} seconds...")
+                time.sleep(wait_time)
+        
+        self.logger.error("Failed to retrieve content from Cloud Run after all attempts")
         return None
 
     def _is_valid_content(self, content: Optional[str]) -> bool:
@@ -178,7 +229,8 @@ class WebScraper:
             # Remove consecutive empty lines while preserving structure
             final_text = re.sub(r'\n{3,}', '\n\n', final_text)
             
-            self.logger.info(f"Successfully processed text: {len(final_text)} characters")
+            self.logger.info(f"Successfully processed text: {len(final_text)} characters. "
+                 f"Preview: {final_text[:100]}...{final_text[-100:]}")
             return final_text
             
         except Exception as e:

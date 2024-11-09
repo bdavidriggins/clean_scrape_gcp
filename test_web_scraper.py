@@ -6,7 +6,7 @@ class WebScraperTestCase(unittest.TestCase):
         self.scraper = WebScraper()
 
     def test_fetch_webpage(self):
-        result = self.scraper.fetch_webpage("https://en.wikipedia.org/wiki/Earth")
+        result = self.scraper.fetch_webpage("http://motherfuckingwebsite.com/")
         self.assertIsNotNone(result)
         self.assertIn("Earth", result)  # Assuming "Earth" will be in the content
 
@@ -28,7 +28,7 @@ The US government said Mr Shakeri has not been arrested and is believed to be in
         self.assertIn("The US government has brought charges", result)
 
     def test_scrape_article(self):
-        result = self.scraper.scrape_article(url="https://en.wikipedia.org/wiki/Earth")
+        result = self.scraper.scrape_article(url="http://motherfuckingwebsite.com/")
         self.assertIsNotNone(result)
         self.assertIn('content', result)
         self.assertIn('title', result)

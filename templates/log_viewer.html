@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family-base);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        #logContainer {
+            height: 100vh;
+            overflow: auto;
+            white-space: nowrap;
+            padding: 10px;
+            box-sizing: border-box;
+            background-color: var(--bg-secondary);
+        }
+        #logContent {
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        #toolbar {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            background-color: var(--bg-tertiary);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        #searchInput {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .highlight {
+            background-color: var(--accent-color);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button id="clearBtn" class="btn btn-secondary">Clear Log</button>
+        <input type="text" id="searchInput" placeholder="Search...">
+        <button id="searchBtn" class="btn btn-secondary">Find</button>
+    </div>
+    <div id="logContainer">
+        <pre id="logContent"></pre>
+    </div>
+    <script>
+        const logContent = document.getElementById('logContent');
+        const logContainer = document.getElementById('logContainer');
+        const clearBtn = document.getElementById('clearBtn');
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+
+        function loadLog() {
+            fetch('/get_log')
+                .then(response => response.text())
+                .then(data => {
+                    logContent.textContent = data;
+                    colorCode();
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function clearLog() {
+            fetch('/clear_log', { method: 'POST' })
+                .then(() => loadLog())
+                .catch(error => console.error('Error:', error));
+        }
+
+        function highlightText() {
+            const text = searchInput.value;
+            if (!text) return;
+
+            const content = logContent.innerHTML;
+            const regex = new RegExp(text, 'gi');
+            logContent.innerHTML = content.replace(regex, match => `<span class="highlight">${match}</span>`);
+        }
+
+        clearBtn.addEventListener('click', clearLog);
+        searchBtn.addEventListener('click', highlightText);
+
+        function colorCode() {
+            const content = logContent.textContent;
+            logContent.innerHTML = content
+                .replace(/(https?:\/\/[^\s]+)/g, '<span style="color: #4CAF50;">$1</span>')
+                .replace(/(ERROR|CRITICAL)/g, '<span style="color: #FF5252;">$1</span>')
+                .replace(/(WARNING)/g, '<span style="color: #FFC107;">$1</span>')
+                .replace(/(INFO)/g, '<span style="color: #2196F3;">$1</span>');
+        }
+
+        loadLog();
+        setInterval(loadLog, 5000);  // Refresh every 5 seconds
+    </script>
+</body>
+</html>

@@ -1,124 +1,321 @@
-from flask import Flask, jsonify, render_template_string
-from test_db_and_function import test_db_manager
-import os
-from dotenv import load_dotenv
-import sys
-import io
-import unittest
-from test_text_to_speech import TestTextToSpeech
+# /home/bdavidriggins/Projects/clean_scrape/main_app.py
+"""
+main_app.py
 
+This is the main Flask application file responsible for handling web routes, interacting with the database,
+and managing article processing. It sets up the Flask app, defines routes for CRUD operations on articles,
+processes incoming data by fetching and cleansing web content, interacts with a language model for content
+generation, and initializes the database connection. This file serves as the central hub for the web
+application's functionality.
+"""
+
+from flask import Flask, render_template, request, jsonify, g, redirect, send_file
+from modules.config import MODEL_NAME_FLASH, ARTICLE_CLEAN_PROMPT, ARTICLE_IMPROVE_READABILITY_PROMPT
+from modules.web_scraper import WebScraper
+from modules.google_api_interface import get_content_response
 from modules.common_logger import setup_logger
+from modules.text_to_speech_service import text_to_speech
+from modules.db_manager import (
+    init_db, 
+    get_db, 
+    close_db, 
+    get_all_articles, 
+    get_article_by_id,
+    save_article,
+    update_article_by_id,
+    delete_article_by_id,
+    get_audio_file_by_article_id
+)
+import io
 
+# Initialize the logger for the application
 logger = setup_logger("main_app")
 
-# Load environment variables
-load_dotenv()
-
+# Initialize the Flask application
 app = Flask(__name__)
 
-# Global variable to store test results
-test_results = {}
-
-
-
-def capture_test_output(test_func):
-    # Capture stdout
-    old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-    
-    try:
-        test_func()
-        output = sys.stdout.getvalue()
-        return 'Success', output
-    except Exception as e:
-        output = sys.stdout.getvalue()
-        return f'Failed: {str(e)}', output
-    finally:
-        sys.stdout = old_stdout
-
-
-
-def run_all_tests():
-    global test_results
-    test_results['db_manager_tests'] = capture_test_output(test_db_manager)
-    test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
-    test_results['google_api_interface_tests'] = capture_test_output(run_google_api_interface_tests)
-    test_results['text_to_speech_tests'] = capture_test_output(run_text_to_speech_tests)
-
-def run_text_to_speech_tests():
-    tests = unittest.TestLoader().loadTestsFromTestCase(TestTextToSpeech)
-    result = unittest.TextTestRunner(verbosity=2).run(tests)
-    return result
-
-def run_web_scraper_tests():
-    tests = unittest.TestLoader().loadTestsFromName('test_web_scraper')
-    result = unittest.TextTestRunner(verbosity=2).run(tests)
-    return result
-
-
-def run_google_api_interface_tests():
-    tests = unittest.TestLoader().loadTestsFromName('test_google_api_interface')
-    result = unittest.TextTestRunner(verbosity=2).run(tests)
-    return result
-
-
-
-# Run tests at startup
-try:
-    run_all_tests()
-except Exception as e:
-    logger.error(f"Error during startup: {e}")
-
+# Register the database close function with Flask to ensure proper teardown
+app.teardown_appcontext(close_db)
 
 @app.route('/')
-def hello():
-    return "Hello, World! Go to /test_results to see test outcomes."
-
-@app.route('/test_results')
-def show_test_results():
-    html_template = """
-    <html>
-        <head>
-            <title>Test Results</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                h1 { color: #333; }
-                .test { margin-bottom: 20px; }
-                .success { color: green; }
-                .failure { color: red; }
-                pre { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }
-            </style>
-        </head>
-        <body>
-            <h1>Test Results</h1>
-            {% for test_name, (result, output) in test_results.items() %}
-                <div class="test">
-                    <h2>{{ test_name }}</h2>
-                    <p class="{{ 'success' if result == 'Success' else 'failure' }}">
-                        Result: {{ result }}
-                    </p>
-                    <h3>Output:</h3>
-                    <pre>{{ output }}</pre>
-                </div>
-            {% endfor %}
-        </body>
-    </html>
+def index():
     """
-    return render_template_string(html_template, test_results=test_results)
+    Render the home page of the application.
+    """
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Error rendering index.html: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500
 
-@app.route('/run_tests')
-def run_tests():
-    run_all_tests()
-    return jsonify(test_results)
+@app.route('/get_articles')
+def get_articles():
+    """
+    Retrieve all articles from the database and return them as JSON.
+    """
+    try:
+        articles = get_all_articles()
+        return jsonify(articles)
+    except Exception as e:
+        logger.error(f"Error fetching articles: {e}")
+        return jsonify({'error': 'Failed to retrieve articles'}), 500
 
-@app.route('/env')
-def show_env():
-    return jsonify({
-        'GOOGLE_CLOUD_PROJECT': os.getenv('GOOGLE_CLOUD_PROJECT'),
-        'GCS_BUCKET_NAME': os.getenv('GCS_BUCKET_NAME'),
-        'USE_MOCK_STORAGE': os.getenv('USE_MOCK_STORAGE')
-    })
+@app.route('/get_article/<int:article_id>')
+def get_article(article_id):
+    """
+    Retrieve a specific article by its ID and return it as JSON.
+    """
+    try:
+        article = get_article_by_id(article_id)
+        if article:
+            return jsonify(article)
+        return jsonify({'error': 'Article not found'}), 404
+    except Exception as e:
+        logger.error(f"Error fetching article with ID {article_id}: {e}")
+        return jsonify({'error': 'Failed to retrieve article'}), 500
+
+
+@app.route('/tts_article/<int:article_id>')
+def tts_article(article_id):
+    """
+    Convert article text to speech by its ID and return whether it was successful
+    """
+    try:
+        # Get the article content
+        article = get_article_by_id(article_id)
+        if not article:
+            logger.error(f"Article with ID {article_id} not found.")
+            return jsonify({'error': 'Article not found'}), 404
+
+        # Convert the text to speech using the article ID
+        conversion_success = text_to_speech(article_id)
+        
+        if not conversion_success:
+            logger.error(f"Text-to-speech conversion failed for article ID {article_id}")
+            return jsonify({'error': 'Text-to-speech conversion failed'}), 500
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        logger.error(f"Error processing text-to-speech for article ID {article_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+
+@app.route('/process', methods=['POST'])
+def process():
+    """Process the submitted URL or HTML content."""
+    try:
+        data = request.get_json()
+        if data is None:
+            logger.warning("No JSON data received in request")
+            return jsonify({'error': 'Invalid input data'}), 400
+
+        url = data.get('url')
+        html_content = data.get('html_content')
+
+        if not url and not html_content:
+            logger.warning("Neither URL nor HTML content provided")
+            return jsonify({'error': 'URL or HTML content is required'}), 400
+
+        scraper = WebScraper({
+            'timeout': 15,
+            'retry_attempts': 2,
+            'retry_delay': 1,
+            'headless': True
+        })
+
+        if html_content:
+            article_data = scraper.scrape_article(raw_content=html_content)
+            source_type = 'html'
+        else:
+            article_data = scraper.scrape_article(url=url)
+            source_type = 'url'
+
+        if article_data is None:
+            logger.error("Failed to extract content")
+            return jsonify({'error': 'Failed to extract content'}), 400
+
+        if not article_data.get('content'):
+            logger.error("Failed to extract content")
+            return jsonify({'error': 'Failed to extract content'}), 400
+
+        full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=article_data.get('content'))        
+        llm_response = get_content_response(
+            user_prompt=full_prompt,
+            model_name=MODEL_NAME_FLASH
+        )
+
+        full_prompt = ARTICLE_IMPROVE_READABILITY_PROMPT.format(article_text=llm_response)        
+        llm_response = get_content_response(
+            user_prompt=full_prompt,
+            model_name=MODEL_NAME_FLASH
+        )
+       
+
+        if llm_response is None:
+            logger.error("Language model response is None")
+            return jsonify({'error': 'Failed to generate content'}), 500
+
+        if save_article(
+            url=url,
+            content=llm_response,
+            title=article_data.get('title', ''),
+            author=article_data.get('author', ''),
+            date=article_data.get('date', ''),
+            description=article_data.get('description', ''),
+            source_type=source_type
+        ):
+            logger.info("Article saved successfully")
+            return jsonify({'success': True})
+        
+        logger.error("Failed to save the article to the database")
+        return jsonify({'error': 'Failed to save article'}), 500
+
+    except Exception as e:
+        logger.exception("An unexpected error occurred during processing")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/update_article/<int:article_id>', methods=['PUT'])
+def update_article(article_id):
+    """
+    Update an existing article's content, title, author, and description by its ID.
+    """
+    try:
+        data = request.get_json()
+        if data is None:
+            logger.warning("No JSON data received in update request")
+            return jsonify({'error': 'Invalid input data'}), 400
+
+        content = data.get('content')
+        title = data.get('title')
+        author = data.get('author')
+        description = data.get('description')
+
+        if not content:
+            logger.warning("Content missing in update request data")
+            return jsonify({'error': 'Content is required'}), 400
+
+        if update_article_by_id(
+            article_id=article_id,
+            content=content,
+            title=title,
+            author=author,
+            description=description
+        ):
+            logger.info(f"Article with ID {article_id} updated successfully")
+            return jsonify({'success': True})
+        logger.error(f"Article with ID {article_id} not found for update")
+        return jsonify({'error': 'Article not found'}), 404
+
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred while updating article ID {article_id}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
+
+@app.route('/delete_article/<int:article_id>', methods=['DELETE'])
+def delete_article(article_id):
+    """
+    Delete an article by its ID.
+    """
+    try:
+        if delete_article_by_id(article_id):
+            logger.info(f"Article with ID {article_id} deleted successfully")
+            return jsonify({'success': True})
+        logger.error(f"Article with ID {article_id} not found for deletion")
+        return jsonify({'error': 'Article not found'}), 404
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred while deleting article ID {article_id}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_articles_with_audio_status')
+def get_articles_with_audio_status():
+    """
+    Retrieve all articles with their audio status
+    """
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('''
+            SELECT 
+                a.*,
+                CASE WHEN af.id IS NOT NULL THEN 1 ELSE 0 END as has_audio
+            FROM articles a
+            LEFT JOIN audio_files af ON a.id = af.article_id
+            ORDER BY a.id DESC
+        ''')
+        articles = cursor.fetchall()
+        
+        return jsonify([{
+            'id': row['id'],
+            'url': row['url'],
+            'content': row['content'],
+            'title': row['title'],
+            'author': row['author'],
+            'date': row['date'],
+            'description': row['description'],
+            'has_audio': bool(row['has_audio'])
+        } for row in articles])
+    except Exception as e:
+        logger.error(f"Error retrieving articles with audio status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/audio_player/<int:article_id>')
+def audio_player(article_id):
+    """
+    Render the audio player page for a specific article
+    """
+    try:
+        article = get_article_by_id(article_id)
+        if not article:
+            return redirect('/')
+            
+        return render_template('audio_player.html', article=article)
+    except Exception as e:
+        logger.error(f"Error loading audio player: {e}")
+        return redirect('/')
+
+@app.route('/get_audio/<int:article_id>')
+def get_audio(article_id):
+    """
+    Stream the audio file for a specific article
+    """
+    try:
+        audio_content = get_audio_file_by_article_id(article_id)
+        if audio_content is None:
+            return jsonify({'error': 'Audio not found'}), 404
+            
+        return send_file(
+            io.BytesIO(audio_content),
+            mimetype='audio/wav'
+        )
+    except Exception as e:
+        logger.error(f"Error streaming audio: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/log_viewer')
+def log_viewer():
+    return render_template('log_viewer.html')
+
+@app.route('/get_log')
+def get_log():
+    with open('app.log', 'r') as f:
+        return f.read()
+
+@app.route('/clear_log', methods=['POST'])
+def clear_log():
+    open('app.log', 'w').close()
+    return '', 204
+
 
 if __name__ == '__main__':
-    # app.run(host='0.0.0.0', port=5000, debug=True)
-    pass
+    try:
+        with app.app_context():
+            init_db()
+            logger.info("Database initialized successfully")
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except Exception as e:
+        logger.critical(f"Failed to start the application: {e}")

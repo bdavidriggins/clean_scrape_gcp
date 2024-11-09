@@ -1,0 +1,580 @@
+/**
+ * /home/bdavidriggins/Projects/clean_scrape/static/style.css
+ * Dark Theme CSS for Clean Scrape Application
+ * Optimized for accessibility, consistency, and dark mode
+ */
+
+ :root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --bg-tertiary: #333;
+    --text-primary: #e0e0e0;
+    --text-secondary: #b0b0b0;
+    --accent-color: #4CAF50;
+    --accent-hover: #45a049;
+    --error-color: #d32f2f;
+    --border-color: #404040;
+    --focus-outline: #66bb6a;
+    --modal-overlay: rgba(0, 0, 0, 0.8);
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+    --font-size-base: 16px;
+    --font-size-large: 24px;
+    --font-size-small: 14px;
+}
+
+/* Base Styles */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.5;
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+}
+
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+    display: grid;
+    grid-gap: 20px;
+}
+
+/* Typography */
+h1 {
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--text-primary);
+    font-size: var(--font-size-large);
+}
+
+/* Form Elements */
+.form-group {
+    flex: 1;           /* Allow the form group to grow */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 15px;
+}
+
+.form-group textarea {
+    flex: 1;           /* Allow textarea to grow within form group */
+}
+
+
+#articleContent {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--modal-overlay);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#articleContent.active {
+    display: flex;
+}
+
+input,
+textarea,
+select,
+button {
+    font-family: inherit;
+    font-size: var(--font-size-base);
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--accent-color);
+    outline: 2px solid var(--focus-outline);
+    outline-offset: 2px;
+    background-color: var(--bg-secondary);
+}
+
+::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* Buttons */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: var(--font-size-base);
+    text-align: center;
+    min-width: 50px;
+}
+
+.btn-primary {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-danger {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Article List */
+#articleList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.article-item {
+    background-color: var(--bg-secondary);
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.article-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.article-name {
+    flex: 1;  /* Allow the title to take up remaining space */
+    margin-right: 10px;  /* Space between title and buttons */
+}
+
+.article-author {
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+}
+
+.article-metadata {
+    background-color: var(--bg-tertiary);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.input-toggle {
+    margin-bottom: 10px;
+}
+
+.input-container {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.btn-add {
+    background-color: var(--accent-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    min-width: auto;
+}
+
+.btn-add img {
+    width: 24px;
+    height: 24px;
+    filter: brightness(0) invert(1);
+}
+
+.input-section {
+    display: none;
+    flex: 1;
+}
+
+.input-section.active {
+    display: block;
+}
+
+#newArticleHtmlInput {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Info Button and Metadata Tooltip */
+
+/* Wrapper for the Info Button and Metadata */
+.info-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+
+.article-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.article-buttons .btn,
+.article-buttons .info-button {
+    width: 32px;
+    height: 32px;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-tertiary);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.icon-button-white {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1);
+}
+
+/* Make all icons the same size */
+.article-buttons .icon-white {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1);
+}
+
+.article-buttons .btn:hover,
+.article-buttons .info-button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+    transition: all 0.2s ease;
+}
+
+.article-buttons .btn:active,
+.article-buttons .info-button:active {
+    transform: translateY(0);
+}
+
+
+.info-button img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+
+.info-button:focus {
+    outline: 2px solid var(--focus-outline);
+    outline-offset: 2px;
+}
+
+
+/* Metadata Tooltip */
+.article-metadata {
+    position: absolute;
+    top: calc(100% + 5px); /* Position below the info button with a small gap */
+    right: 0; /* Align with the right side of the info button */
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    z-index: 10;
+    width: 200px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    
+    /* Initially hidden */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* Show Metadata on Hover */
+.info-wrapper:hover .article-metadata,
+.info-wrapper:focus-within .article-metadata {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+.expandable-textarea {
+    min-height: 300px;
+    max-height: calc(80vh - 200px);  /* Subtract space for other elements */
+    resize: vertical;
+    overflow-y: auto;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    tab-size: 4;
+    padding: 15px;  /* Add more padding for comfort */
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    max-width: 100%;
+    width: 100%;
+}
+
+.expandable-textarea:focus {
+    border-color: var(--accent-color);
+    outline: 2px solid var(--focus-outline);
+    outline-offset: 2px;
+    background-color: var(--bg-secondary);
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 90%;
+    margin: 20px auto;
+    max-height: 90vh;   /* Limit modal height */
+    overflow-y: auto;   /* Add scrollbar to modal if needed */
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Loading Overlay - Updated styles */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--modal-overlay);
+    backdrop-filter: blur(3px);
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Loading indicator container */
+.loading-indicator {
+    text-align: center;
+}
+
+
+/* Enhanced Spinner */
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid var(--text-secondary);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    color: var(--text-primary);
+    margin-top: 15px;
+    font-size: var(--font-size-base);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* URL Input Section */
+.url-input-section {
+    display: flex;
+    gap: 10px;
+    padding: 15px;
+    background-color: var(--bg-secondary);
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+/* Close Button */
+.close-button {
+    color: var(--text-secondary);
+    font-size: var(--font-size-large);
+    cursor: pointer;
+    padding: 5px;
+    transition: color 0.2s ease;
+}
+
+.close-button:hover {
+    color: var(--text-primary);
+}
+
+/* Accessibility Improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+/* Focus Visible */
+*:focus-visible {
+    outline: 2px solid var(--focus-outline);
+    outline-offset: 2px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    .url-input-section {
+        flex-direction: column;
+    }
+
+    .modal-content {
+        width: 95%;
+        padding: 15px;
+    }
+
+    .article-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .article-author {
+        margin-top: 5px;
+    }
+    .article-metadata {
+        width: 150px; /* Reduce width on smaller screens */
+        left: 50%;
+        transform: translateX(-50%);
+    }
+}
+
+/* High Contrast Mode Support */
+@media (forced-colors: active) {
+    .btn,
+    .article-item,
+    .modal-content {
+        border: 1px solid CanvasText;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .btn,
+    .loading-overlay,
+    .url-input-section {
+        display: none;
+    }
+
+    body {
+        background-color: white;
+        color: black;
+    }
+
+    .article-item {
+        break-inside: avoid;
+        border: 1px solid #000;
+    }
+}
+
+.toast-container {
+    position: sticky;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    z-index: 1000;
+    pointer-events: none; /* This allows clicking through the toast container */
+}
+
+.toast {
+    background-color: var(--bg-tertiary);
+    color: #FFD700; /* Bright gold color for better visibility */
+    padding: 12px 20px;
+    margin-top: 10px;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+    transform: translateY(20px);
+    max-width: 80%;
+    text-align: center;
+    pointer-events: auto; /* Make the toast itself clickable */
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #FFD700;
+    font-size: 1.2em;
+    margin-left: 10px;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.toast-close:hover {
+    color: #FFA500;
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+    Article Manager Application
+
+    This HTML document serves as the main interface for the Article Manager application.
+    It allows users to input article URLs and names, view processed articles, and
+    perform actions such as viewing, editing, and deleting articles. The interface
+    is styled with a dark theme and is responsive across various device sizes.
+
+    Enhancements Implemented:
+    1. Added meta tags for responsiveness and character encoding.
+    2. Improved accessibility by adding labels and ARIA attributes.
+    3. Replaced inline event handlers with unobtrusive JavaScript (recommended for future implementation).
+    4. Structured HTML with semantic elements for better readability and accessibility.
+    6. Enhanced loading overlay for better accessibility and usability.
+    7. Added a plus button to trigger the "Process New Article" modal.
+    8. Combined "View" and "Edit" buttons into a single "View" button.
+
+    Recommended File Name: article_manager.html
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Article Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-indicator">
+            <div class="spinner"></div>
+            <p class="loading-text">Processing...</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="container">
+        <header>
+            <h1>Article Manager
+                <button id="viewLogButton" class="btn btn-secondary" aria-label="View Log">
+                    <img src="/static/feather/file-text.svg" alt="view log" aria-hidden="true" class="icon-button-white">
+                </button>
+            </h1>
+            <div class="input-toggle">
+                <button class="btn btn-secondary" id="toggleInputType">Switch to Manual Input</button>
+            </div>
+            <div class="input-container">
+                <div id="urlInputSection" class="input-section active">
+                    <input type="url" 
+                           id="newArticleUrlInput" 
+                           placeholder="Enter Article URL" 
+                           aria-label="Add New Article URL">
+                </div>
+                <div id="htmlInputSection" class="input-section">
+                    <textarea id="newArticleHtmlInput" 
+                              placeholder="Paste HTML/Text content here" 
+                              aria-label="Paste HTML/Text Content"></textarea>
+                </div>
+                <button id="addArticleButton" 
+                        class="btn btn-add" 
+                        aria-label="Submit Article">
+                        <img src="/static/feather/file-plus.svg" alt="add" aria-hidden="true">
+                </button>
+            </div>
+        </header>
+        
+        
+        <!-- Article List Section -->
+        <section class="article-section" aria-labelledby="articleListTitle">
+            <ul id="articleList"></ul>
+        </section>
+        <div id="toast" class="toast-container"></div>
+
+        <!-- Article Content Modal -->
+        <section id="articleContent" class="article-content" aria-hidden="true" role="dialog" aria-labelledby="articleTitle" style="display: none;">
+            <div class="modal-content">
+                <span class="close-button" onclick="closeArticle()" aria-label="Close">&times;</span>
+                <h3 id="articleTitle"></h3>
+                <textarea id="articleText" readonly></textarea>
+                <div class="button-group">
+                    <button type="button" class="btn btn-save" onclick="saveArticle()">Save</button>
+                    <button type="button" class="btn btn-cancel" onclick="closeArticle()">Close</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- JavaScript File -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

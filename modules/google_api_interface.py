@@ -57,8 +57,7 @@ class ContentGenerator:
         self.model_name = model_name or DEFAULT_MODEL_NAME
         
         # Get the path to the JSON file in the same directory as this script
-        current_dir = os.path.dirname(__file__)
-        json_path = os.path.join(current_dir, 'service_account.json')
+        json_path = os.path.join(os.getcwd(), 'service-account-key.json')
 
         # Load the JSON credentials from the file
         try:
@@ -140,58 +139,58 @@ class ContentGenerator:
             raise
 
 
-def get_content_response(
-    user_prompt: str,
-    model_name: Optional[str] = None
-) -> str:
-    """
-    Public function to generate content based on user prompt using ContentGenerator.
+# def get_content_response(
+#     user_prompt: str,
+#     model_name: Optional[str] = None
+# ) -> str:
+#     """
+#     Public function to generate content based on user prompt using ContentGenerator.
 
-    :param user_prompt: The input prompt from the user.
-    :param model_name: Optional model name to use. If not provided, defaults are used.
-    :return: Generated content as a string.
-    """
-    try:
-        # Initialize ContentGenerator with provided parameters
-        content_generator = ContentGenerator(
-            model_name=model_name
-        )
+#     :param user_prompt: The input prompt from the user.
+#     :param model_name: Optional model name to use. If not provided, defaults are used.
+#     :return: Generated content as a string.
+#     """
+#     try:
+#         # Initialize ContentGenerator with provided parameters
+#         content_generator = ContentGenerator(
+#             model_name=model_name
+#         )
 
-        # Generate content
-        response = content_generator.generate_content(user_prompt)
+#         # Generate content
+#         response = content_generator.generate_content(user_prompt)
         
-        return response
-    except Exception as e:
-        logger.error(
-            f"Error in get_content_response: {str(e)}",
-            exc_info=True
-        )
-        return "An error occurred while generating the content."
+#         return response
+#     except Exception as e:
+#         logger.error(
+#             f"Error in get_content_response: {str(e)}",
+#             exc_info=True
+#         )
+#         return "An error occurred while generating the content."
 
 
-if __name__ == '__main__':
-    import sys
+# if __name__ == '__main__':
+#     import sys
 
-    def main():
-        """
-        Main function to test the ContentGenerator class.
-        """
-        # Define a test prompt
-        test_prompt = "Who was Robert Rogers and what was his leadership style?"
-        custom_model_name = "gemini-1.5-flash-002"
+#     def main():
+#         """
+#         Main function to test the ContentGenerator class.
+#         """
+#         # Define a test prompt
+#         test_prompt = "Who was Robert Rogers and what was his leadership style?"
+#         custom_model_name = "gemini-1.5-flash-002"
 
-        # Generate content using the public interface
-        try:
-            generated_content = get_content_response(
-                user_prompt=test_prompt,
-                model_name=custom_model_name  # Pass custom model name
-            )
-            print("\n--- Generated Content ---\n")
-            print(generated_content)
-            print("\n--- End of Generated Content ---\n")
-        except Exception as gen_error:
-            logger.error(f"An error occurred during content generation: {gen_error}", exc_info=True)
-            traceback.print_exc()
-            sys.exit(1)
+#         # Generate content using the public interface
+#         try:
+#             generated_content = get_content_response(
+#                 user_prompt=test_prompt,
+#                 model_name=custom_model_name  # Pass custom model name
+#             )
+#             print("\n--- Generated Content ---\n")
+#             print(generated_content)
+#             print("\n--- End of Generated Content ---\n")
+#         except Exception as gen_error:
+#             logger.error(f"An error occurred during content generation: {gen_error}", exc_info=True)
+#             traceback.print_exc()
+#             sys.exit(1)
 
-    main()
+#     main()

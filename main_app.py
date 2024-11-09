@@ -42,6 +42,8 @@ def run_all_tests():
     test_results['db_manager_tests'] = capture_test_output(test_db_manager)
     test_results['audio_functions_tests'] = capture_test_output(test_audio_functions)
     test_results['web_scraper_tests'] = capture_test_output(run_web_scraper_tests)
+    test_results['google_api_interface_tests'] = capture_test_output(run_google_api_interface_tests)
+
 
 def run_web_scraper_tests():
     tests = unittest.TestLoader().loadTestsFromName('test_web_scraper')
@@ -49,7 +51,10 @@ def run_web_scraper_tests():
     return result
 
 
-
+def run_google_api_interface_tests():
+    tests = unittest.TestLoader().loadTestsFromName('test_google_api_interface')
+    result = unittest.TextTestRunner(verbosity=2).run(tests)
+    return result
 
 
 

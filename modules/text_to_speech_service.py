@@ -20,12 +20,7 @@ from modules.common_logger import setup_logger
 from pydub import AudioSegment
 import io
 from contextlib import contextmanager
-import shutil
-import ffmpeg
 import time
-import psutil
-import sys
-import tempfile
 import gc
 from tenacity import (
     retry,
@@ -36,7 +31,6 @@ from tenacity import (
 import socket
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import subprocess
-import tempfile
 from io import BytesIO
 import wave
 

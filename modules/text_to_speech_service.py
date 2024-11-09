@@ -43,8 +43,7 @@ AudioSegment.converter = FFMPEG_PATH
 
 # Ensure ffmpeg is executable
 st = os.stat(FFMPEG_PATH)
-os.chmod(FFMPEG_PATH, st.st_mode | stat.S_IEXEC)
-
+#os.chmod(FFMPEG_PATH, st.st_mode | stat.S_IEXEC)
 
 
 from modules.db_manager import (

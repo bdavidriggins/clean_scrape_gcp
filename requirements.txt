@@ -36,3 +36,4 @@ psutil
 miniaudio
 aiohttp
 asgiref
+a2wsgi

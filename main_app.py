@@ -26,13 +26,15 @@ from modules.db_manager import (
 )
 import io
 import datetime, random, string
-
+from a2wsgi import ASGItoWSGIMiddleware
 
 # Initialize the logger for the application
 logger = setup_logger("main_app")
 
 # Initialize the Flask application
 app = Quart(__name__)
+# Create a WSGI application
+wsgi_app = ASGItoWSGIMiddleware(app)
 
 @app.after_request
 def add_header(response):
@@ -305,15 +307,10 @@ async def get_audio(article_id):
             logger.error(f"Error streaming audio for article ID {article_id}: {e}")
             return jsonify({'error': str(e)}), 500
 
-from asgiref.wsgi import WsgiToAsgi
-
-# Create a WSGI application
-wsgi_app = WsgiToAsgi(app)
 
 if __name__ == '__main__':
     import asyncio
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(app.run_task(host='0.0.0.0', port=5000, debug=True))
+        asyncio.run(app.run_task(host='0.0.0.0', port=5000, debug=True))
     except Exception as e:
         logger.critical(f"Failed to start the application: {e}")

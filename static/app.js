@@ -58,7 +58,6 @@ function toggleInputType() {
 
 
 async function handleArticleSubmission() {
-    const addArticleButton = document.getElementById('addArticleButton');
     const urlInput = document.getElementById('newArticleUrlInput');
     const htmlInput = document.getElementById('newArticleHtmlInput');
     
@@ -322,7 +321,6 @@ function ttsArticleContent(id) {
     const button = document.querySelector(buttonSelector);
     
     if (button) {
-        button.disabled = true;
         const originalContent = button.innerHTML;
         button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
         
@@ -352,8 +350,7 @@ function ttsArticleContent(id) {
                 button.innerHTML = originalContent;
             })
             .finally(() => {
-                button.disabled = false;
-                loadingManager.hide();
+        
             });
     }
 }
@@ -406,7 +403,7 @@ function saveArticle() {
         showToast(`Failed to save article: ${error.message}`, 5000);
     })
     .finally(() => {
-        loadingManager.hide();
+        
     });
 }
 
@@ -444,7 +441,7 @@ function deleteArticle(id) {
         showToast(`Failed to delete article: ${error.message}`, 5000);
     })
     .finally(() => {
-        loadingManager.hide();
+        
     });
 }
 

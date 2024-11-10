@@ -23,6 +23,9 @@ from google.oauth2 import service_account
 from modules.common_logger import setup_logger, truncate_text
 from google.auth import default
 import asyncio
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from google.api_core.exceptions import ResourceExhausted
 
 # Fixed Variables
 PROJECT_ID = 'resewrch-agent'  # Replace with your GCP project ID
@@ -93,9 +96,16 @@ class ContentGenerator:
         ]
 
 
+    @retry(
+        retry=retry_if_exception_type(ResourceExhausted),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=15, max=60),
+        reraise=True
+    )
     async def generate_content(self, user_prompt: str) -> str:
         """
         Generates content based on the user prompt and logs the response.
+        Implements retry logic for ResourceExhausted errors.
         :param user_prompt: The input prompt from the user.
         :return: Generated content as a string.
         """
@@ -112,6 +122,9 @@ class ContentGenerator:
             
             self.logger.info(f"Content generation successful: \n'{truncate_text(generated_text)}'")
             return generated_text
+        except ResourceExhausted as e:
+            self.logger.warning(f"ResourceExhausted error encountered. Retrying in 15 seconds. Error: {str(e)}")
+            raise  # This will trigger the retry
         except Exception as e:
             self.logger.error(
                 f"Error during content generation: {str(e)}",

@@ -305,12 +305,14 @@ async def get_audio(article_id):
             logger.error(f"Error streaming audio for article ID {article_id}: {e}")
             return jsonify({'error': str(e)}), 500
 
+from asgiref.wsgi import WsgiToAsgi
+wsgi_app = WsgiToAsgi(app.asgi_app)
+
 wsgi_app = app.asgi_app
 
 if __name__ == '__main__':
     import asyncio
     try:
-        # For local development
         loop = asyncio.get_event_loop()
         loop.run_until_complete(app.run_task(host='0.0.0.0', port=5000, debug=True))
     except Exception as e:

@@ -13,7 +13,7 @@ import asyncio
 from modules.config import MODEL_NAME_FLASH, ARTICLE_CLEAN_PROMPT, ARTICLE_IMPROVE_READABILITY_PROMPT
 from modules.web_scraper import WebScraper
 from modules.google_api_interface import ContentGenerator
-from modules.common_logger import setup_logger,logger, job_context, set_job_context, clear_job_context
+from modules.common_logger import setup_logger,logger, job_context, set_job_context, clear_job_context, truncate_text
 from modules.text_to_speech_service import text_to_speech
 from modules.db_manager import (
     get_all_articles, 
@@ -25,6 +25,7 @@ from modules.db_manager import (
     get_articles_with_audio_status as db_get_articles_with_audio_status
 )
 import io
+import datetime, random, string
 
 # Initialize the logger for the application
 logger = setup_logger("main_app")
@@ -112,10 +113,10 @@ async def process():
     try:
         data = await request.get_json()
 
-        job_id = f"-{data['url'][-8:]}"
+        job_id = datetime.datetime.now().strftime('%Y%m%d%H%M%S') + ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
         with job_context(job_id):
-            logger.info(f"Starting processing for URL: {data['url']}")
+            
 
             if data is None:
                 logger.warning("No JSON data received in request")
@@ -136,9 +137,11 @@ async def process():
             })
 
             if html_content:
+                logger.info(f"Starting processing for raw data:\n{truncate_text(html_content)}")
                 article_data = await scraper.scrape_article(raw_content=html_content)
                 source_type = 'html'
             else:
+                logger.info(f"Starting processing for URL: {data['url']}")
                 article_data = await scraper.scrape_article(url=url)
                 source_type = 'url'
 

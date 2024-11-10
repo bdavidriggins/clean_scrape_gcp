@@ -2,13 +2,11 @@ runtime: python312
 entrypoint: gunicorn -b :$PORT main_app:app --timeout 1800
 instance_class: F4_1G
 automatic_scaling:
-  min_num_instances: 0
-  max_num_instances: 1
   min_idle_instances: 0
-  max_idle_instances: 0
-  cool_down_period_sec: 300
-  cpu_utilization:
-    target_utilization: 0.6
+  max_idle_instances: 1
+  min_pending_latency: 250ms
+  max_pending_latency: 750ms
+  max_concurrent_requests: 10
 readiness_check:
   app_start_timeout_sec: 1800  # 30 minutes
 handlers:

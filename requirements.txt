@@ -35,3 +35,4 @@ tenacity
 psutil
 miniaudio
 aiohttp
+asgiref

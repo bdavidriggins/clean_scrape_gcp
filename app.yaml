@@ -1,6 +1,5 @@
 runtime: python312
-entrypoint: uvicorn main_app:app --host 0.0.0.0 --port $PORT --workers 2 --threads 4 --timeout 1800
-
+entrypoint: gunicorn -b :$PORT main_app:wsgi_app --timeout 1800 --workers 2 --threads 4
 instance_class: F4_1G
 automatic_scaling:
   min_idle_instances: 0
@@ -9,14 +8,11 @@ automatic_scaling:
   max_pending_latency: 750ms
   max_concurrent_requests: 10
   max_instances: 3
-
 readiness_check:
   app_start_timeout_sec: 1800  # 30 minutes
-
 handlers:
   - url: /.*
     script: auto
-
 env_variables:
   GCS_BUCKET_NAME: 'clean-scrape-audio-files'
   GOOGLE_CLOUD_PROJECT: 'resewrch-agent'

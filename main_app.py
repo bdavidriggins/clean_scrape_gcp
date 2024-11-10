@@ -26,6 +26,8 @@ from modules.db_manager import (
 )
 import io
 import datetime, random, string
+from asgiref.wsgi import WsgiToAsgi
+
 
 # Initialize the logger for the application
 logger = setup_logger("main_app")
@@ -304,10 +306,9 @@ async def get_audio(article_id):
             logger.error(f"Error streaming audio for article ID {article_id}: {e}")
             return jsonify({'error': str(e)}), 500
 
-
+wsgi_app = WsgiToAsgi(app)
 if __name__ == '__main__':
-    try:        
+    try:
         app.run(host='0.0.0.0', port=5000, debug=True)
     except Exception as e:
         logger.critical(f"Failed to start the application: {e}")
-

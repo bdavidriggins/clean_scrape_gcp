@@ -62,9 +62,7 @@ async function handleArticleSubmission() {
     const urlInput = document.getElementById('newArticleUrlInput');
     const htmlInput = document.getElementById('newArticleHtmlInput');
     
-    // Disable the button to prevent multiple submissions
-    addArticleButton.disabled = true;
-
+    
     // Clear input fields immediately
     const urlValue = urlInput.value.trim();
     const htmlValue = htmlInput.value.trim();
@@ -100,8 +98,7 @@ async function handleArticleSubmission() {
             htmlInput.value = htmlValue;
         }
     } finally {
-        // Re-enable the button
-        addArticleButton.disabled = false;
+        
     }
 }
 

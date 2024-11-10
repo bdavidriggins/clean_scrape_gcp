@@ -36,7 +36,22 @@ def setup_logger(name, log_file='app.log', level=logging.DEBUG):
 
     return logger
 
-# Example usage
-# logger = setup_logger("my_module")
-# logger.info("This is an info message")
-# logger.error("This is an error message")
+def truncate_text(text):
+    """
+    Truncates the text to show only the first and last `max_length` characters.
+    If the text is shorter than or equal to 2 * max_length, it returns the original text.
+    
+    Args:
+        text (str): The text to truncate.
+        
+        
+    Returns:
+        str: The truncated text with an ellipsis in the middle if necessary.
+    """
+    #The number of characters to show from the start and end.
+    max_length = 100
+    if not isinstance(text, str):
+        text = str(text)
+    if len(text) <= 2 * max_length:
+        return text
+    return f"{text[:max_length]}\n\n...truncated...\n\n{text[-max_length:]}"

@@ -20,7 +20,7 @@ import json
 import vertexai
 from vertexai.generative_models import GenerativeModel, SafetySetting
 from google.oauth2 import service_account
-from modules.common_logger import setup_logger
+from modules.common_logger import setup_logger, truncate_text
 from google.auth import default
 import asyncio
 
@@ -100,7 +100,7 @@ class ContentGenerator:
         :return: Generated content as a string.
         """
         try:
-            self.logger.info(f"Generating content for prompt: '{user_prompt}'")
+            self.logger.info(f"Generating content for prompt: \n'{truncate_text(user_prompt)}'")
             chat = self.model.start_chat(response_validation=False)
             response = await asyncio.to_thread(
                 chat.send_message,
@@ -108,9 +108,9 @@ class ContentGenerator:
                 generation_config=self.generation_config,
                 safety_settings=self.safety_settings
             )
-            generated_text = response.text  # Assuming response has a 'text' attribute
+            generated_text = response.text
             
-            self.logger.info("Content generation successful.")
+            self.logger.info(f"Content generation successful: \n'{truncate_text(generated_text)}'")
             return generated_text
         except Exception as e:
             self.logger.error(

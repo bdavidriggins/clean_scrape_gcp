@@ -278,8 +278,7 @@ async def get_audio(article_id):
         return await send_file(
             audio_content,
             mimetype='audio/mp4',
-            as_attachment=False,    # Stream the audio instead of downloading
-            download_name=f"{article_id}.m4a"  # Optional: Only needed if as_attachment=True
+            as_attachment=False    # Stream the audio instead of downloading
         )
     except Exception as e:
         logger.error(f"Error streaming audio for article ID {article_id}: {e}")

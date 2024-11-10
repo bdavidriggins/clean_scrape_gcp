@@ -8,8 +8,8 @@ Designed to work with a Flask application using Google Cloud Firestore as the da
 and Google Cloud Storage for audio file storage.
 """
 
+from google.cloud.firestore_v1 import AsyncClient
 from google.cloud import firestore
-from google.cloud import firestore_async
 from google.cloud import storage
 from google.cloud import exceptions as gcp_exceptions
 from modules.common_logger import setup_logger
@@ -21,7 +21,7 @@ from google.oauth2 import service_account
 import json
 from io import BytesIO
 from google.cloud import storage
-from google.cloud import firestore
+
 import asyncio
 from functools import partial
 
@@ -38,7 +38,8 @@ GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
 # Initialize clients based on environment
 if is_appengine:
     # On App Engine, use default credentials
-    db = firestore_async.AsyncClient(project=PROJECT_ID, database=DATABASE_NAME)
+    db = AsyncClient(project=PROJECT_ID, database=DATABASE_NAME)
+
     storage_client = storage.Client()
 else:
     # Clear any local emulator settings
@@ -55,7 +56,7 @@ else:
         scopes=['https://www.googleapis.com/auth/cloud-platform']
     )
     
-    db = firestore_async.AsyncClient(
+    db = AsyncClient(
         project=PROJECT_ID,
         credentials=credentials,
         database=DATABASE_NAME

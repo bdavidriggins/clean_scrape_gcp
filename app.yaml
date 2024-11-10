@@ -1,6 +1,13 @@
 runtime: python312
 entrypoint: gunicorn -b :$PORT main_app:app
-instance_class: F4
+instance_class: F4_1G
+automatic_scaling:
+  min_idle_instances: 0
+  max_idle_instances: 1
+  min_pending_latency: 250ms
+  max_pending_latency: 750ms
+  idle_timeout: 15m  # Sets idle timeout to 5 minutes
+  default_max_request_duration: 1200s  # 20 minutes
 handlers:
   - url: /.*
     script: auto

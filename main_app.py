@@ -306,9 +306,9 @@ async def get_audio(article_id):
             return jsonify({'error': str(e)}), 500
 
 from asgiref.wsgi import WsgiToAsgi
-wsgi_app = WsgiToAsgi(app.asgi_app)
 
-wsgi_app = app.asgi_app
+# Create a WSGI application
+wsgi_app = WsgiToAsgi(app)
 
 if __name__ == '__main__':
     import asyncio

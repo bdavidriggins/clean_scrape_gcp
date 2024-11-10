@@ -293,7 +293,9 @@ async def get_audio(article_id):
 
 
 if __name__ == '__main__':
-    try:        
-        app.run(host='0.0.0.0', port=5000, debug=True)
+    try:
+        import hypercorn.asyncio
+        import asyncio
+        asyncio.run(hypercorn.asyncio.serve(app, hypercorn.Config()))
     except Exception as e:
         logger.critical(f"Failed to start the application: {e}")

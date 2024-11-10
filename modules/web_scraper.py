@@ -32,6 +32,8 @@ import spacy
 # Local imports
 from modules.common_logger import setup_logger
 from modules.config import initialize_nlp
+import threading
+from functools import lru_cache
 
 class WebScraper:
     def __init__(self, config: Dict[str, Any] = None):
@@ -52,16 +54,29 @@ class WebScraper:
         self.config = {**default_config, **(config or {})}
         self.cloud_run_url = "https://scrape-webpage-1098359986679.us-south1.run.app" 
 
-        # Initialize spaCy NLP model
-        try:
-            self.nlp = initialize_nlp()
-        except Exception as e:
-            self.logger.error(f"Failed to initialize NLP model: {str(e)}")
-            raise
+
+        self.nlp_local = threading.local()
 
         # Initialize session
         self.session = None
 
+    @lru_cache(maxsize=None)
+    def get_nlp(self):
+        if not hasattr(self.nlp_local, 'nlp'):
+            try:
+                self.nlp_local.nlp = initialize_nlp()
+            except Exception as e:
+                self.logger.error(f"Failed to initialize NLP model: {str(e)}")
+                raise
+        return self.nlp_local.nlp
+    
+    async def __aenter__(self):
+        await self.create_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close_session()
+        
     async def create_session(self):
         if self.session is None:
             self.session = aiohttp.ClientSession()
@@ -187,51 +202,53 @@ class WebScraper:
             
         return True
 
-    def extract_content(self, html_content: str) -> Optional[str]:
+    async def extract_content(self, html_content: str) -> Optional[str]:
         """
         Extract main content from HTML.
         """
         self.logger.info("Extracting content")
-
         try:
-            soup = BeautifulSoup(html_content, 'html.parser')
+            loop = asyncio.get_running_loop()
+            soup = await loop.run_in_executor(None, lambda: BeautifulSoup(html_content, 'html.parser'))
             
             # Remove script and style elements
             for script in soup(["script", "style"]):
                 script.decompose()
 
             # Get text
-            text = soup.get_text()
-
-            # Break into lines and remove leading and trailing space on each
-            lines = (line.strip() for line in text.splitlines())
-            # Break multi-headlines into a line each
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            # Drop blank lines
-            text = '\n'.join(chunk for chunk in chunks if chunk)
-
-            self.logger.info(f"Successfully extracted content with length: {len(text)}")
-            return text
+            text = await loop.run_in_executor(None, soup.get_text)
+            
+            # Process text (this can be CPU-intensive, so we run it in an executor)
+            processed_text = await self.process_text(text)
+            
+            self.logger.info(f"Successfully extracted content with length: {len(processed_text)}")
+            return processed_text
             
         except Exception as e:
-            self.logger.error(f"Content extraction failed: {str(e)}")
+            self.logger.error(f"Content extraction failed: {str(e)}", exc_info=True)
             return None
 
-    def process_text(self, text: str) -> Optional[str]:
+    async def process_text(self, text: str) -> Optional[str]:
         """
         Process and clean text while preserving all sentences and structure.
         """
         try:
             self.logger.info(f"Processing text of length: {len(text)} characters")
             
+            loop = asyncio.get_running_loop()
+            nlp = self.get_nlp()
+
             # Split text into paragraphs while preserving empty lines
             paragraphs = text.split('\n')
             processed_paragraphs = []
-            
+
             for paragraph in paragraphs:
                 if paragraph.strip():
-                    doc = self.nlp(paragraph)
-                    processed_sentences = [self.split_long_sentences(sent.text.strip()) for sent in doc.sents if sent.text.strip()]
+                    doc = await loop.run_in_executor(None, nlp, paragraph)
+                    processed_sentences = await asyncio.gather(*[
+                        loop.run_in_executor(None, self.split_long_sentences, sent.text.strip())
+                        for sent in doc.sents if sent.text.strip()
+                    ])
                     processed_paragraphs.append(' '.join(processed_sentences))
                 else:
                     processed_paragraphs.append('')
@@ -250,10 +267,10 @@ class WebScraper:
             self.logger.error(f"Error processing text: {str(e)}", exc_info=True)
             return None
 
-
     def split_long_sentences(self, text: str) -> str:
         max_length = self.config['max_sentence_length']
-        doc = self.nlp(text)
+        nlp = self.get_nlp()
+        doc = nlp(text)
         split_sentences = []
         for sent in doc.sents:
             if len(sent.text) > max_length:
@@ -264,7 +281,8 @@ class WebScraper:
                 split_sentences.append(sent.text.strip())
         return ' '.join(split_sentences)
 
-    def extract_article_metadata(self, soup: BeautifulSoup) -> Dict[str, str]:
+
+    async def extract_article_metadata(self, soup: BeautifulSoup) -> Dict[str, str]:
         """
         Extract article metadata from HTML.
         """
@@ -276,32 +294,34 @@ class WebScraper:
             'date': '',
             'description': ''
         }
-
+        
+        loop = asyncio.get_running_loop()
+        
         # Extract title
         title_tag = soup.find('title')
         if title_tag:
-            metadata['title'] = title_tag.text.strip()
-
+            metadata['title'] = await loop.run_in_executor(None, lambda: title_tag.text.strip())
+        
         # Extract author
         author_tag = soup.find('meta', attrs={'name': 'author'})
         if author_tag:
             metadata['author'] = author_tag.get('content', '').strip()
-
+        
         # Extract date
         date_tag = soup.find('meta', attrs={'property': 'article:published_time'})
         if date_tag:
             date_str = date_tag.get('content', '')
             try:
-                parsed_date = parser.parse(date_str)
+                parsed_date = await loop.run_in_executor(None, parser.parse, date_str)
                 metadata['date'] = parsed_date.isoformat()
             except ValueError:
                 self.logger.warning(f"Could not parse date: {date_str}")
-
+        
         # Extract description
         desc_tag = soup.find('meta', attrs={'name': 'description'})
         if desc_tag:
             metadata['description'] = desc_tag.get('content', '').strip()
-
+        
         self.logger.info("Metadata extraction completed")
         return metadata
 
@@ -317,17 +337,20 @@ class WebScraper:
                 raise ValueError("Either URL or HTML content must be provided")
             
             if not html_content:
+                self.logger.error("Failed to retrieve HTML content")
                 return None
             
             soup = BeautifulSoup(html_content, 'html.parser')
-            metadata = self.extract_article_metadata(soup)
+            metadata = await self.extract_article_metadata(soup)
             
-            main_content = self.extract_content(html_content)
+            main_content = await self.extract_content(html_content)
             if not main_content:
+                self.logger.error("Failed to extract main content")
                 return None
             
-            processed_text = self.process_text(main_content)
+            processed_text = await self.process_text(main_content)
             if not processed_text:
+                self.logger.error("Failed to process text")
                 return None
             
             result = {
@@ -337,9 +360,13 @@ class WebScraper:
             }
             self._log_extraction_results(result)
             return result
+        except ValueError as e:
+            self.logger.error(f"Invalid input: {str(e)}")
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error during scraping: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Scraping failed: {str(e)}")
-            return None
+            self.logger.error(f"Unexpected error during scraping: {str(e)}", exc_info=True)
+        return None
 
     def _calculate_backoff(self, attempt: int) -> int:
         """

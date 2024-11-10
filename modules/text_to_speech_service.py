@@ -19,7 +19,7 @@ from google.cloud import storage
 from modules.common_logger import setup_logger
 from pydub import AudioSegment
 import io
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 import time
 import gc
 from tenacity import (
@@ -36,6 +36,8 @@ import wave
 
 from pydub import AudioSegment
 import stat
+import asyncio
+ 
 
 # Constants for ffmpeg
 FFMPEG_PATH = os.path.join(os.getcwd(), 'ffmpeg')
@@ -207,7 +209,7 @@ class TextToSpeech:
             f"Attempt {retry_state.attempt_number} {'successful' if not retry_state.outcome.failed else 'failed'}"
         )
     )
-    def convert_text_to_speech(self, text: str) -> Optional[bytes]:
+    async def convert_text_to_speech(self, text: str) -> Optional[bytes]:
         """Converts text to speech with enhanced error handling."""
         if not isinstance(text, str):
             logger.error("Input must be a string")
@@ -222,7 +224,7 @@ class TextToSpeech:
         
 
         try:
-            with self._get_client() as client:
+            async with self._get_client() as client:
                 request = {
                     "input": texttospeech.SynthesisInput(text=text),
                     "voice": texttospeech.VoiceSelectionParams(
@@ -238,7 +240,7 @@ class TextToSpeech:
                 start_time = time.time()
                 
                 try:
-                    audio_content = self._make_tts_request(client, request)
+                    audio_content = await asyncio.to_thread(self._make_tts_request, client, request)
                     if not audio_content:
                         logger.error("Received empty response from TTS API")
                         return None
@@ -265,9 +267,9 @@ class TextToSpeech:
 
        
 
-    def _process_chunk(self, chunk: str, output_file: str, chunk_index: int, total_chunks: int) -> bool:
+    async def _process_chunk(self, chunk: str, output_file: str, chunk_index: int, total_chunks: int) -> bool:
         try:
-            audio_content = self.convert_text_to_speech(chunk)
+            audio_content = await self.convert_text_to_speech(chunk)
             if audio_content is None:
                 logger.error(f"Failed to convert chunk {chunk_index}/{total_chunks}")
                 return False
@@ -295,30 +297,32 @@ class TextToSpeech:
             return False
 
 
-    def process_large_text(self, text: str, chunk_size: int = 5000) -> Optional[bytes]:
+    async def process_large_text(self, text: str, chunk_size: int = 5000) -> Optional[bytes]:
         try:
             text_bytes = len(text.encode('utf-8'))
             logger.info(f"Starting process_large_text - Total text size: {text_bytes} bytes")
             
-            with self.temporary_directory() as temp_prefix:
+            async with self.temporary_directory() as temp_prefix:
                 chunks = self._chunk_text(text, chunk_size)
                 total_chunks = len(chunks)
                 chunk_files = []
                 failed_chunks = 0
                 
-                for idx, chunk in enumerate(chunks, 1):
-                    chunk_file = f"{temp_prefix}/chunk_{idx}.wav"
-                    if self._process_chunk(chunk, chunk_file, idx, total_chunks):
-                        chunk_files.append(chunk_file)
-                    else:
-                        failed_chunks += 1
-                        if failed_chunks / total_chunks > self.ERROR_THRESHOLD:
-                            raise Exception(f"Error threshold exceeded: {failed_chunks}/{total_chunks} chunks failed")
+                tasks = [self._process_chunk(chunk, f"{temp_prefix}/chunk_{idx}.wav", idx, total_chunks)
+                        for idx, chunk in enumerate(chunks, 1)]
+                results = await asyncio.gather(*tasks)
+                
+                chunk_files = [f"{temp_prefix}/chunk_{idx}.wav" for idx, success in enumerate(results, 1) if success]
+                failed_chunks = len(results) - sum(results)
+                
+                if failed_chunks / total_chunks > self.ERROR_THRESHOLD:
+                    raise Exception(f"Error threshold exceeded: {failed_chunks}/{total_chunks} chunks failed")
                 
                 if not chunk_files:
                     raise Exception("No valid audio chunks generated")
                 
-                final_audio = self._combine_audio_files(chunk_files)
+                final_audio = await self._combine_audio_files(chunk_files)
+
                 if final_audio is None:
                     raise Exception("Failed to combine audio files")
                     
@@ -328,7 +332,7 @@ class TextToSpeech:
             logger.error(f"Critical error in process_large_text: {str(e)}")
             return None
 
-    def _combine_audio_files(self, file_paths: List[str]) -> Optional[bytes]:
+    async def _combine_audio_files(self, file_paths: List[str]) -> Optional[bytes]:
         """Combines multiple audio files using Google Cloud Storage."""
         storage_client = storage.Client()
         bucket = storage_client.bucket(self.bucket_name)
@@ -339,13 +343,12 @@ class TextToSpeech:
             with wave.open(combined_audio, 'wb') as outwave:
                 for i, file_path in enumerate(file_paths):
                     blob = bucket.blob(self.get_temp_gcs_path(file_path))
-                    if not blob.exists():
+                    if not await asyncio.to_thread(blob.exists):
                         logger.error(f"Blob does not exist: {file_path}")
                         continue
-
                     # Download the audio file to memory
                     audio_data = BytesIO()
-                    blob.download_to_file(audio_data)
+                    await asyncio.to_thread(blob.download_to_file, audio_data)
                     audio_data.seek(0)
 
                     # Read the wave file
@@ -381,69 +384,32 @@ class TextToSpeech:
                 
                 logger.info(f"Cleanup completed for prefix: {prefix}")
 
-
-
-    @contextmanager
-    def _manage_ffmpeg_process(self, process: subprocess.Popen):
-        """Context manager for FFmpeg process management."""
-        try:
-            yield process
-        finally:
-            if process and process.poll() is None:
-                try:
-                    process.terminate()
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                except Exception as e:
-                    logger.error(f"Error cleaning up FFmpeg process: {e}")
-
-
-
-
-    def _cleanup_old_temp_files(self, max_age_hours: int = 24, prefix: str = 'tmp_audio_files/'):
-        try:
-            current_time = time.time()
-            blobs = self.bucket.list_blobs(prefix=prefix)
-            for blob in blobs:
-                if (current_time - blob.time_created.timestamp()) > (max_age_hours * 3600):
-                    blob.delete()
-                    logger.debug(f"Removed old temporary file: {blob.name}")
-        except Exception as e:
-            logger.error(f"Error during cleanup of old temporary files: {e}")
-    
-
-    def cleanup(self):
+    async def cleanup(self):
         """Cleanup method to be called when done with the instance"""
         try:
             blobs = self.bucket.list_blobs(prefix='tmp_audio_files/')
-            for blob in blobs:
-                blob.delete()
+            await asyncio.gather(*[asyncio.to_thread(blob.delete) for blob in blobs])
         except Exception as e:
             logger.error(f"Cleanup failed: {e}")
 
             
-    @contextmanager
-    def temporary_directory(self):
+    @asynccontextmanager
+    async def temporary_directory(self):
         prefix = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         try:
             logger.debug(f"Created temporary prefix in Cloud Storage: {prefix}")
             yield prefix
         finally:
-            self._cleanup_temp_files(prefix)
+            await self._cleanup_temp_files(prefix)
 
-    def _cleanup_temp_files(self, prefix):
+    async def _cleanup_temp_files(self, prefix):
         blobs = self.bucket.list_blobs(prefix=f"tmp_audio_files/{prefix}")
-        for blob in blobs:
-            try:
-                blob.delete()
-                logger.debug(f"Cleaned up temporary file: {blob.name}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temporary file {blob.name}: {e}")
+        tasks = [asyncio.to_thread(blob.delete) for blob in blobs]
+        await asyncio.gather(*tasks)
 
 
-    @contextmanager
-    def _get_client(self) -> Generator[texttospeech.TextToSpeechClient, None, None]:
+    @asynccontextmanager
+    async def _get_client(self) -> Generator[texttospeech.TextToSpeechClient, None, None]:
         """
         Context manager for handling the Text-to-Speech client with timeout handling.
         """
@@ -466,12 +432,12 @@ class TextToSpeech:
             )
 
             logger.debug("Creating TextToSpeechClient with configured options")
-            client = texttospeech.TextToSpeechClient(
-                client_options=client_options
-            )
-            
-            logger.debug("TextToSpeechClient created successfully")
-            yield client
+            try:
+                client = await asyncio.to_thread(texttospeech.TextToSpeechClient, client_options=client_options)
+                yield client
+            finally:
+                if client:
+                    await asyncio.to_thread(client.close)
             
         except Exception as e:
             logger.error(f"Error creating TextToSpeechClient: {str(e)}", exc_info=True)
@@ -549,7 +515,7 @@ class TextToSpeech:
         return chunks
 
 
-def text_to_speech(article_id) -> bool:
+async def text_to_speech(article_id) -> bool:
     """
     Main entry point for text-to-speech conversion using an article ID.
     """
@@ -557,7 +523,7 @@ def text_to_speech(article_id) -> bool:
     try:
         # Retrieve article content
         logger.info(f"Attempting to retrieve article with ID {article_id}")
-        article = get_article_by_id(article_id)
+        article = await get_article_by_id(article_id)
         if not article:
             logger.error(f"Article with ID {article_id} does not exist.")
             return False
@@ -578,10 +544,10 @@ def text_to_speech(article_id) -> bool:
         logger.info(f"Starting conversion for content of size {content_length} bytes")
         if content_length <= 5000:
             logger.info("Using single-chunk conversion method")
-            audio_response = text_converter.convert_text_to_speech(text_content)
+            audio_response = await text_converter.convert_text_to_speech(text_content)
         else:
             logger.info("Using multi-chunk conversion method")
-            audio_response = text_converter.process_large_text(text_content)
+            audio_response = await text_converter.process_large_text(text_content)
 
         if audio_response is None:
             logger.error("Text-to-speech conversion failed - audio_response is None")
@@ -600,7 +566,7 @@ def text_to_speech(article_id) -> bool:
         logger.info(f"Audio conversion completed. M4A audio size: {audio_size} bytes")
 
         logger.info(f"Attempting to save M4A audio file for article ID {article_id}")
-        success = create_audio_file(article_id, m4a_audio)
+        success = await create_audio_file(article_id, m4a_audio)
         if not success:
             logger.error("Failed to save M4A audio to the database.")
             return False

@@ -34,10 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners
     document.getElementById('toggleInputType').addEventListener('click', toggleInputType);
     document.getElementById('addArticleButton').addEventListener('click', handleArticleSubmission);
-    document.getElementById('viewLogButton').addEventListener('click', function(event) {
-        event.preventDefault(); // Prevent any default action
-        window.open('/log_viewer', '_blank');
-    });
 
     loadArticles();
 });

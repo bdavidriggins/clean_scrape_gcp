@@ -2,6 +2,7 @@
 # Web framework and server
 Flask
 gunicorn
+quart
 
 # Google Cloud services
 google-cloud-firestore
@@ -9,6 +10,8 @@ google-cloud-storage
 google-cloud-pubsub
 google-cloud-logging
 google-cloud-texttospeech
+google-cloud-firestore[async] 
+google-cloud-storage[async]
 
 vertexai
 
@@ -31,3 +34,4 @@ pydub
 tenacity
 psutil
 miniaudio
+aiohttp

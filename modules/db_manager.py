@@ -9,6 +9,7 @@ and Google Cloud Storage for audio file storage.
 """
 
 from google.cloud import firestore
+from google.cloud import firestore_async
 from google.cloud import storage
 from google.cloud import exceptions as gcp_exceptions
 from modules.common_logger import setup_logger
@@ -21,7 +22,8 @@ import json
 from io import BytesIO
 from google.cloud import storage
 from google.cloud import firestore
-
+import asyncio
+from functools import partial
 
 # Determine if we're running on App Engine
 is_appengine = os.getenv('GAE_ENV', '').startswith('standard')
@@ -36,7 +38,7 @@ GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME', 'clean-scrape-audio-files')
 # Initialize clients based on environment
 if is_appengine:
     # On App Engine, use default credentials
-    db = firestore.Client(project=PROJECT_ID, database=DATABASE_NAME)
+    db = firestore_async.AsyncClient(project=PROJECT_ID, database=DATABASE_NAME)
     storage_client = storage.Client()
 else:
     # Clear any local emulator settings
@@ -53,7 +55,7 @@ else:
         scopes=['https://www.googleapis.com/auth/cloud-platform']
     )
     
-    db = firestore.Client(
+    db = firestore_async.AsyncClient(
         project=PROJECT_ID,
         credentials=credentials,
         database=DATABASE_NAME
@@ -70,25 +72,25 @@ logger = setup_logger("database")
 
 
 
-def get_all_articles():
+async def get_all_articles():
     """
     Retrieve all articles from the database.
     """
-    try:
-        articles = db.collection('articles').order_by('id', direction=firestore.Query.DESCENDING).get()
+    try:        
+        articles = await db.collection('articles').order_by('id', direction=firestore.Query.DESCENDING).get()
         logger.debug(f"Retrieved {len(articles)} articles from the database.")
         return [doc.to_dict() for doc in articles]
     except Exception as e:
         logger.error(f"Error retrieving articles: {str(e)}")
         return []
 
-def get_article_by_id(article_id):
+async def get_article_by_id(article_id):
     """
     Retrieve a specific article by its ID.
     """
     try:
         doc_ref = db.collection('articles').document(str(article_id))
-        doc = doc_ref.get()
+        doc = await doc_ref.get()
         if doc.exists:
             logger.debug(f"Article found with ID {article_id}.")
             return doc.to_dict()
@@ -98,7 +100,7 @@ def get_article_by_id(article_id):
         logger.error(f"Error retrieving article {article_id}: {str(e)}")
         return None
 
-def get_articles_with_audio_status() -> List[Dict]:
+async def get_articles_with_audio_status() -> List[Dict]:
     """
     Retrieve all articles with their audio status.
     Determines if an article has associated audio by checking the 'audio_file_path' field.
@@ -108,7 +110,7 @@ def get_articles_with_audio_status() -> List[Dict]:
     """
     try:
         articles_ref = db.collection('articles').order_by('created_at', direction=firestore.Query.DESCENDING)
-        articles = articles_ref.stream()
+        articles = await articles_ref.get()
         articles_with_status = []
         for doc in articles:
             data = doc.to_dict()
@@ -130,7 +132,7 @@ def get_articles_with_audio_status() -> List[Dict]:
         logger.error(f"Error retrieving articles with audio status: {e}")
         return []
     
-def save_article(content, title="", author="", date="", description="", url=None, source_type="url"):
+async def save_article(content, title="", author="", date="", description="", url=None, source_type="url"):
     """
     Save a new article to the database.
     """
@@ -147,19 +149,19 @@ def save_article(content, title="", author="", date="", description="", url=None
             'source_type': source_type,
             'created_at': firestore.SERVER_TIMESTAMP
         }
-        doc_ref.set(article_data)
+        await doc_ref.set(article_data)
         logger.info(f"Article saved successfully: {title or 'N/A'} (Source: {source_type})")
         return True
     except Exception as e:
         logger.error(f"Error saving article: {str(e)}")
         return False
 
-def get_last_article_id() -> Optional[str]:
+async def get_last_article_id() -> Optional[str]:
     """
     Retrieve the ID of the last inserted article.
     """
     try:
-        articles = db.collection('articles').order_by('created_at', direction=firestore.Query.DESCENDING).limit(1).get()
+        articles = await db.collection('articles').order_by('created_at', direction=firestore.Query.DESCENDING).limit(1).get()
         for doc in articles:
             logger.info(f"Retrieved last article ID: {doc.id}")
             return doc.id
@@ -169,7 +171,7 @@ def get_last_article_id() -> Optional[str]:
         logger.error(f"Database error when retrieving last article ID: {e}")
         return None
 
-def update_article_by_id(article_id, content, title=None, author=None, description=None):
+async def update_article_by_id(article_id, content, title=None, author=None, description=None):
     """
     Update an existing article in the database.
     """
@@ -183,26 +185,26 @@ def update_article_by_id(article_id, content, title=None, author=None, descripti
         if description is not None:
             update_data['description'] = description
 
-        doc_ref.update(update_data)
+        await doc_ref.update(update_data)
         logger.info(f"Article {article_id} updated successfully.")
         return True
     except Exception as e:
         logger.error(f"Error updating article {article_id}: {str(e)}")
         return False
 
-def delete_article_by_id(article_id):
+async def delete_article_by_id(article_id):
     """
     Delete an article from the database by its ID, along with its associated audio file if it exists.
     """
     try:
         # Delete the article from Firestore
-        db.collection('articles').document(str(article_id)).delete()
+        await db.collection('articles').document(str(article_id)).delete()
         logger.info(f"Article {article_id} deleted from Firestore.")
 
         # Attempt to delete associated audio file from Cloud Storage
         try:
             blob = bucket.blob(f'audio_files/{article_id}.m4a')
-            blob.delete()
+            await asyncio.to_thread(blob.delete)
             logger.info(f"Associated audio file for article {article_id} deleted successfully.")
         except gcp_exceptions.NotFound:
             logger.info(f"No associated audio file found for article {article_id}.")
@@ -215,7 +217,7 @@ def delete_article_by_id(article_id):
         return False
 
 
-def create_audio_file(article_id: str, m4a_audio: Union[BytesIO, bytes]) -> bool:
+async def create_audio_file(article_id: str, m4a_audio: Union[BytesIO, bytes]) -> bool:
     """
     Save a new M4A audio file associated with an article in Cloud Storage.
     
@@ -231,11 +233,11 @@ def create_audio_file(article_id: str, m4a_audio: Union[BytesIO, bytes]) -> bool
             m4a_audio = BytesIO(m4a_audio)
         
         m4a_audio.seek(0)
-        blob.upload_from_file(m4a_audio, content_type='audio/mp4')
+        await asyncio.to_thread(blob.upload_from_file, m4a_audio, content_type='audio/mp4')
         
         # Update the article document in Firestore with the audio file reference
         doc_ref = db.collection('articles').document(str(article_id))
-        doc_ref.update({
+        await doc_ref.update({
             'audio_file_path': f'audio_files/{article_id}.m4a',
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
@@ -246,7 +248,7 @@ def create_audio_file(article_id: str, m4a_audio: Union[BytesIO, bytes]) -> bool
         return False
 
 
-def get_audio_file_by_article_id(article_id: str) -> Optional[BytesIO]:
+async def get_audio_file_by_article_id(article_id: str) -> Optional[BytesIO]:
     """
     Retrieve the M4A audio file associated with a specific article from Cloud Storage.
     
@@ -255,7 +257,7 @@ def get_audio_file_by_article_id(article_id: str) -> Optional[BytesIO]:
     """
     try:
         blob = bucket.blob(f'audio_files/{article_id}.m4a')
-        audio_content = blob.download_as_bytes()
+        audio_content = await asyncio.to_thread(blob.download_as_bytes)
         logger.info(f"M4A audio file retrieved for article ID {article_id}.")
         return BytesIO(audio_content)
     except Exception as e:
@@ -263,7 +265,7 @@ def get_audio_file_by_article_id(article_id: str) -> Optional[BytesIO]:
         return None
     
 
-def update_audio_file(article_id: str, new_audio_content: Union[BytesIO, bytes]) -> bool:
+async def update_audio_file(article_id: str, new_audio_content: Union[BytesIO, bytes]) -> bool:
     """
     Update the M4A audio file for a specific article in Cloud Storage.
     
@@ -279,11 +281,11 @@ def update_audio_file(article_id: str, new_audio_content: Union[BytesIO, bytes])
             new_audio_content = BytesIO(new_audio_content)
         
         new_audio_content.seek(0)
-        blob.upload_from_file(new_audio_content, content_type='audio/mp4')
+        await asyncio.to_thread(blob.upload_from_file, new_audio_content, content_type='audio/mp4')
         
         # Update the article document in Firestore
         doc_ref = db.collection('articles').document(str(article_id))
-        doc_ref.update({
+        await doc_ref.update({
             'audio_updated_at': firestore.SERVER_TIMESTAMP
         })
         logger.info(f"M4A audio file updated for article ID {article_id}.")
@@ -292,17 +294,17 @@ def update_audio_file(article_id: str, new_audio_content: Union[BytesIO, bytes])
         logger.error(f"Error updating M4A audio file for article ID {article_id}: {e}")
         return False
 
-def delete_audio_file(article_id: str) -> bool:
+async def delete_audio_file(article_id: str) -> bool:
     """
     Delete the M4A audio file associated with a specific article from Cloud Storage.
     """
     try:
         blob = bucket.blob(f'audio_files/{article_id}.m4a')
-        blob.delete()
+        await asyncio.to_thread(blob.delete)
         
         # Update the article document in Firestore
         doc_ref = db.collection('articles').document(str(article_id))
-        doc_ref.update({
+        await doc_ref.update({
             'audio_file_path': firestore.DELETE_FIELD,
             'audio_updated_at': firestore.DELETE_FIELD
         })
@@ -312,13 +314,13 @@ def delete_audio_file(article_id: str) -> bool:
         logger.error(f"Error deleting M4A audio file for article ID {article_id}: {e}")
         return False
 
-def get_audio_files_info() -> List[Dict]:
+async def get_audio_files_info() -> List[Dict]:
     """
     Retrieve information about all audio files in the database.
     """
     try:
         # First, get all articles
-        articles = db.collection('articles').get()
+        articles = await db.collection('articles').get()
         audio_files_info = []
         for doc in articles:
             data = doc.to_dict()

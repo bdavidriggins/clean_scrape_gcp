@@ -22,6 +22,7 @@ from vertexai.generative_models import GenerativeModel, SafetySetting
 from google.oauth2 import service_account
 from modules.common_logger import setup_logger
 from google.auth import default
+import asyncio
 
 # Fixed Variables
 PROJECT_ID = 'resewrch-agent'  # Replace with your GCP project ID
@@ -57,7 +58,10 @@ class ContentGenerator:
 
         # Use default application credentials
         try:
-            self._initialize_vertexai()
+            vertexai.init(project=PROJECT_ID)
+            self.model = GenerativeModel(
+                self.model_name
+            )
         except Exception as e:
             self.logger.error(f"Failed to load service account credentials: {e}", exc_info=True)
             raise
@@ -88,34 +92,18 @@ class ContentGenerator:
             ),
         ]
 
-    def _initialize_vertexai(self):
-        """
-        Initializes the Vertex AI client and loads the generative model.
-        """
-        try:
-            vertexai.init(project=PROJECT_ID)
-            self.model = GenerativeModel(
-                self.model_name
-            )
-            self.logger.info(f"Vertex AI initialized successfully with model '{self.model_name}'.")
-        except Exception as e:
-            self.logger.error(
-                f"Failed to initialize Vertex AI with model '{self.model_name}': {str(e)}",
-                exc_info=True
-            )
-            raise
 
-    def generate_content(self, user_prompt: str) -> str:
+    async def generate_content(self, user_prompt: str) -> str:
         """
         Generates content based on the user prompt and logs the response.
-
         :param user_prompt: The input prompt from the user.
         :return: Generated content as a string.
         """
         try:
             self.logger.info(f"Generating content for prompt: '{user_prompt}'")
             chat = self.model.start_chat(response_validation=False)
-            response = chat.send_message(
+            response = await asyncio.to_thread(
+                chat.send_message,
                 [user_prompt],
                 generation_config=self.generation_config,
                 safety_settings=self.safety_settings

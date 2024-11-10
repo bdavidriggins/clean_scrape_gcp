@@ -24,7 +24,8 @@ import json
 from typing import Optional, Tuple
 
 # Third-party imports
-import requests
+import aiohttp
+import asyncio
 from bs4 import BeautifulSoup
 import spacy
 
@@ -59,8 +60,18 @@ class WebScraper:
             raise
 
         # Initialize session
-        self.session = requests.Session()
-        self.session.verify = self.config['verify_ssl']
+        self.session = None
+
+    async def create_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+            connector = aiohttp.TCPConnector(verify_ssl=self.config['verify_ssl'])
+            self.session = aiohttp.ClientSession(connector=connector)
+
+    async def close_session(self):
+        if self.session:
+            await self.session.close()
+            self.session = None
 
     def _get_random_user_agent(self) -> str:
         """Return a random user agent string."""
@@ -73,7 +84,7 @@ class WebScraper:
         return random.choice(user_agents)
 
 
-    def fetch_webpage(self, url: str) -> Optional[str]:
+    async def fetch_webpage(self, url: str) -> Optional[str]:
         """
         Fetch webpage content with retry mechanism, using both local method and Cloud Run service.
         Args:
@@ -83,8 +94,10 @@ class WebScraper:
         """
         self.logger.info(f"Fetching webpage: {url}")
         
-        local_content = self._fetch_local(url)
-        cloud_run_content = self._fetch_cloud_run(url)
+        await self.create_session()
+
+        local_content = await self._fetch_local(url)
+        cloud_run_content = await self._fetch_cloud_run(url)
         
         if local_content and cloud_run_content:
             if len(local_content) >= len(cloud_run_content):
@@ -99,60 +112,59 @@ class WebScraper:
         self.logger.error("Failed to retrieve content from both local and Cloud Run methods")
         return None
 
-    def _fetch_local(self, url: str) -> Optional[str]:
+    async def _fetch_local(self, url: str) -> Optional[str]:
         for attempt in range(self.config['retry_attempts']):
             self.logger.info(f"Local attempt {attempt + 1} of {self.config['retry_attempts']}")
             
             try:
                 headers = {'User-Agent': self._get_random_user_agent()}
-                response = self.session.get(url, timeout=self.config['timeout'], headers=headers)
-                response.raise_for_status()
-                
-                content = response.text
-                if self._is_valid_content(content):
-                    self.logger.info("Successfully retrieved content locally")
-                    return content
-                
-                self.logger.warning("Retrieved local content is not valid")
+                async with self.session.get(url, timeout=self.config['timeout'], headers=headers) as response:
+                    response.raise_for_status()
+                    content = await response.text()
+                    if self._is_valid_content(content):
+                        self.logger.info("Successfully retrieved content locally")
+                        return content
                     
-            except requests.RequestException as e:
+                    self.logger.warning("Retrieved local content is not valid")
+                    
+            except aiohttp.ClientError as e:
                 self.logger.warning(f"Local fetch failed: {str(e)}")
             
             if attempt < self.config['retry_attempts'] - 1:
                 wait_time = self._calculate_backoff(attempt)
                 self.logger.info(f"Retrying local fetch after {wait_time} seconds...")
-                time.sleep(wait_time)
+                await asyncio.sleep(wait_time)
         
         self.logger.error("Failed to retrieve content locally after all attempts")
         return None
+    
 
-    def _fetch_cloud_run(self, url: str) -> Optional[str]:
+    async def _fetch_cloud_run(self, url: str) -> Optional[str]:
         for attempt in range(self.config['retry_attempts']):
             self.logger.info(f"Cloud Run attempt {attempt + 1} of {self.config['retry_attempts']}")
             
             try:
                 params = {'url': url}
-                response = requests.get(self.cloud_run_url, params=params, timeout=self.config['timeout'])
-                response.raise_for_status()
-                
-                result = response.json()
-                if result['status'] == 'success':
-                    content = result['content']
-                    if self._is_valid_content(content):
-                        self.logger.info("Successfully retrieved content from Cloud Run")
-                        return content
-                    
-                    self.logger.warning("Retrieved Cloud Run content is not valid")
-                else:
-                    self.logger.warning(f"Cloud Run fetch failed: {result.get('error', 'Unknown error')}")
-                    
-            except requests.RequestException as e:
+                async with self.session.get(self.cloud_run_url, params=params, timeout=self.config['timeout']) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+                    if result['status'] == 'success':
+                        content = result['content']
+                        if self._is_valid_content(content):
+                            self.logger.info("Successfully retrieved content from Cloud Run")
+                            return content
+                        
+                        self.logger.warning("Retrieved Cloud Run content is not valid")
+                    else:
+                        self.logger.warning(f"Cloud Run fetch failed: {result.get('error', 'Unknown error')}")
+                        
+            except aiohttp.ClientError as e:
                 self.logger.warning(f"Cloud Run fetch failed: {str(e)}")
             
             if attempt < self.config['retry_attempts'] - 1:
                 wait_time = self._calculate_backoff(attempt)
                 self.logger.info(f"Retrying Cloud Run fetch after {wait_time} seconds...")
-                time.sleep(wait_time)
+                await asyncio.sleep(wait_time)
         
         self.logger.error("Failed to retrieve content from Cloud Run after all attempts")
         return None
@@ -293,43 +305,38 @@ class WebScraper:
         self.logger.info("Metadata extraction completed")
         return metadata
 
-    def scrape_article(self, url: str = None, raw_content: str = None) -> Optional[Dict[str, str]]:
-        """
-        Main scraping function that retrieves and processes article content and metadata.
-        """
+    async def scrape_article(self, url: str = None, raw_content: str = None) -> Optional[Dict[str, str]]:
         self.logger.info(f"Starting article scraping{' for URL: ' + url if url else ''}")
         
         try:
             if url:
-                html_content = self.fetch_webpage(url)
+                html_content = await self.fetch_webpage(url)
             elif raw_content:
                 html_content = raw_content
             else:
                 raise ValueError("Either URL or HTML content must be provided")
-
+            
             if not html_content:
                 return None
-
+            
             soup = BeautifulSoup(html_content, 'html.parser')
             metadata = self.extract_article_metadata(soup)
             
             main_content = self.extract_content(html_content)
             if not main_content:
                 return None
-
+            
             processed_text = self.process_text(main_content)
             if not processed_text:
                 return None
-
+            
             result = {
                 'url': url,
                 'content': processed_text,
                 **metadata
             }
-
             self._log_extraction_results(result)
             return result
-
         except Exception as e:
             self.logger.error(f"Scraping failed: {str(e)}")
             return None
@@ -357,69 +364,6 @@ class WebScraper:
         self.logger.info(f"Date: {result.get('date', 'N/A')}")
         self.logger.info(f"Content length: {len(result.get('content', ''))} characters")
 
-    def __del__(self):
-        """Cleanup resources when the scraper is destroyed."""
-        try:
-            if hasattr(self, 'session'):
-                self.session.close()
-        except Exception as e:
-            self.logger.error(f"Error cleaning up session: {str(e)}")
-
-# Example usage
-def main():
-    """
-    Test function that demonstrates the WebScraper functionality using both
-    URL and local HTML file inputs.
-    """
-    logger = setup_logger("test_web_scraper")
-
-    logger.info("\nTesting URL file scraping...")
-    
-    scraper = WebScraper()
-        
-    # Test with URL
-    test_url = "https://example.com"
-    logger.info("Testing URL scraping...")
-    url_result = scraper.scrape_article(url=test_url)
-    
-    if url_result:
-        logger.info("Successfully scraped article from URL:")
-        logger.info(f"Title: {url_result.get('title', 'N/A')}")
-        logger.info(f"Author: {url_result.get('author', 'N/A')}")
-        logger.info(f"Date: {url_result.get('date', 'N/A')}")
-        logger.info(f"Description: {url_result.get('description', 'N/A')}")
-        logger.info(f"Content length: {len(url_result['content'])} characters")
-        logger.info(f"Content preview: {url_result.get('content', 'N/A')[:500]}...")
-    else:
-        logger.error("Failed to scrape article from URL")
-
-    # Test with local HTML file    
-    logger.info("\nTesting HTML file scraping...")
-    
-    try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        test_file_path = os.path.join(current_dir, "test_data.html")
-
-        with open(test_file_path, 'r', encoding='utf-8') as file:
-            html_content = file.read()
-        
-        file_result = scraper.scrape_article(raw_content=html_content)
-        
-        if file_result:
-            logger.info("Successfully scraped article from HTML file:")
-            logger.info(f"Title: {file_result.get('title', 'N/A')}")
-            logger.info(f"Author: {file_result.get('author', 'N/A')}")
-            logger.info(f"Date: {file_result.get('date', 'N/A')}")
-            logger.info(f"Description: {file_result.get('description', 'N/A')}")
-            logger.info(f"Content length: {len(file_result['content'])} characters")
-            logger.info(f"Content preview: {file_result.get('content', 'N/A')[:500]}...")
-        else:
-            logger.error("Failed to scrape article from HTML file")
-            
-    except FileNotFoundError:
-        logger.error(f"Test file not found: {test_file_path}")
-    except Exception as e:
-        logger.error(f"Error testing HTML file scraping: {str(e)}")
-
-if __name__ == "__main__":
-    main()
+    async def close(self):
+        """Close the scraper and cleanup resources."""
+        await self.close_session()

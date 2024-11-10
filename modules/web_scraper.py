@@ -79,7 +79,6 @@ class WebScraper:
         
     async def create_session(self):
         if self.session is None:
-            self.session = aiohttp.ClientSession()
             connector = aiohttp.TCPConnector(verify_ssl=self.config['verify_ssl'])
             self.session = aiohttp.ClientSession(connector=connector)
 

@@ -13,7 +13,7 @@ import asyncio
 from modules.config import MODEL_NAME_FLASH, ARTICLE_CLEAN_PROMPT, ARTICLE_IMPROVE_READABILITY_PROMPT
 from modules.web_scraper import WebScraper
 from modules.google_api_interface import ContentGenerator
-from modules.common_logger import setup_logger
+from modules.common_logger import setup_logger,logger, job_context, set_job_context, clear_job_context
 from modules.text_to_speech_service import text_to_speech
 from modules.db_manager import (
     get_all_articles, 
@@ -112,70 +112,76 @@ async def process():
     """Process the submitted URL or HTML content."""
     try:
         data = await request.get_json()
-        if data is None:
-            logger.warning("No JSON data received in request")
-            return jsonify({'error': 'Invalid input data'}), 400
+        job_id = f"-{data['url'][-8:]}"
 
-        url = data.get('url')
-        html_content = data.get('html_content')
+        with job_context(job_id):
+            logger.info(f"Starting processing for URL: {data['url']}")
 
-        if not url and not html_content:
-            logger.warning("Neither URL nor HTML content provided")
-            return jsonify({'error': 'URL or HTML content is required'}), 400
+            if data is None:
+                logger.warning("No JSON data received in request")
+                return jsonify({'error': 'Invalid input data'}), 400
 
-        scraper = WebScraper({
-            'timeout': 15,
-            'retry_attempts': 2,
-            'retry_delay': 1,
-            'headless': True
-        })
+            url = data.get('url')
+            html_content = data.get('html_content')
 
-        if html_content:
-            article_data = await scraper.scrape_article(raw_content=html_content)
-            source_type = 'html'
-        else:
-            article_data = await scraper.scrape_article(url=url)
-            source_type = 'url'
+            if not url and not html_content:
+                logger.warning("Neither URL nor HTML content provided")
+                return jsonify({'error': 'URL or HTML content is required'}), 400
 
-        if article_data is None:
-            logger.error("Failed to extract content")
-            return jsonify({'error': 'Failed to extract content'}), 400
+            scraper = WebScraper({
+                'timeout': 15,
+                'retry_attempts': 2,
+                'retry_delay': 1,
+                'headless': True
+            })
 
-        if not article_data.get('content'):
-            logger.error("Failed to extract content")
-            return jsonify({'error': 'Failed to extract content'}), 400
+            if html_content:
+                article_data = await scraper.scrape_article(raw_content=html_content)
+                source_type = 'html'
+            else:
+                article_data = await scraper.scrape_article(url=url)
+                source_type = 'url'
 
-        content_generator = ContentGenerator()
+            if article_data is None:
+                logger.error("Failed to extract content")
+                return jsonify({'error': 'Failed to extract content'}), 400
 
-        full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=article_data.get('content'))        
-        llm_response = await content_generator.generate_content(
-            user_prompt=full_prompt
-        )
+            if not article_data.get('content'):
+                logger.error("Failed to extract content")
+                return jsonify({'error': 'Failed to extract content'}), 400
 
-        full_prompt = ARTICLE_IMPROVE_READABILITY_PROMPT.format(article_text=llm_response)        
-        llm_response = await content_generator.generate_content(
-            user_prompt=full_prompt
-        )
-       
+            content_generator = ContentGenerator()
 
-        if llm_response is None:
-            logger.error("Language model response is None")
-            return jsonify({'error': 'Failed to generate content'}), 500
+            full_prompt = ARTICLE_CLEAN_PROMPT.format(article_text=article_data.get('content'))        
+            llm_response = await content_generator.generate_content(
+                user_prompt=full_prompt
+            )
 
-        if await save_article(
-            url=url,
-            content=llm_response,
-            title=article_data.get('title', ''),
-            author=article_data.get('author', ''),
-            date=article_data.get('date', ''),
-            description=article_data.get('description', ''),
-            source_type=source_type
-        ):
-            logger.info("Article saved successfully")
-            return jsonify({'success': True})
+            full_prompt = ARTICLE_IMPROVE_READABILITY_PROMPT.format(article_text=llm_response)        
+            llm_response = await content_generator.generate_content(
+                user_prompt=full_prompt
+            )
         
-        logger.error("Failed to save the article to the database")
-        return jsonify({'error': 'Failed to save article'}), 500
+
+            if llm_response is None:
+                logger.error("Language model response is None")
+                return jsonify({'error': 'Failed to generate content'}), 500
+
+            if await save_article(
+                url=url,
+                content=llm_response,
+                title=article_data.get('title', ''),
+                author=article_data.get('author', ''),
+                date=article_data.get('date', ''),
+                description=article_data.get('description', ''),
+                source_type=source_type
+            ):
+                logger.info("Article saved successfully")
+                return jsonify({'success': True})
+            
+            logger.error("Failed to save the article to the database")
+            return jsonify({'error': 'Failed to save article'}), 500
+        
 
     except Exception as e:
         logger.exception("An unexpected error occurred during processing")

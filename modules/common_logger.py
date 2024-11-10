@@ -1,47 +1,90 @@
-# /home/bdavidriggins/Projects/clean_scrape/modules/common_logger.py
+# modules/common_logger.py
+
 import logging
 import os
 import threading
+import uuid
+from contextlib import contextmanager
 from google.cloud import logging as cloud_logging
 
-def setup_logger(name, log_file='app.log', level=logging.DEBUG):
-    """
-    Sets up a logger with the specified name and log file.
-    Uses App Engine logging when deployed, and file-based logging when running locally.
-    :param name: Name of the logger (typically the module name).
-    :param log_file: The file where logs will be written (used only for local logging).
-    :param level: Logging level.
-    :return: Configured logger instance.
-    """
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
+# Thread-local storage for job context
+_thread_local = threading.local()
 
-    class ThreadIdFilter(logging.Filter):
-        def filter(self, record):
-            record.thread_id = threading.get_ident()
-            return True
+class JobContextFilter(logging.Filter):
+    def filter(self, record):
+        record.job_id = getattr(_thread_local, 'job_id', 'No-Job')
+        record.pid = os.getpid()
+        record.tid = threading.get_native_id()
+        return True
     
-    # Check if running on App Engine
-    if os.getenv('GAE_ENV', '').startswith('standard'):
-        # Running on App Engine, use Cloud Logging
-        client = cloud_logging.Client()
-        handler = cloud_logging.handlers.CloudLoggingHandler(client)
-        handler.setFormatter(logging.Formatter('%(name)s - %(message)s'))
-        logger.addHandler(handler)
-        
-        # Add a custom label to identify your logs
-        logger = logging.LoggerAdapter(logger, {'app_name': 'clean_scrape'})
-    else:
-        # Running locally, use file-based logging
-        if not logger.handlers:
-            fh = logging.FileHandler(log_file)
-            fh.setLevel(level)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - [Thread-%(thread_id)d] - %(message)s')
-            fh.setFormatter(formatter)
-            logger.addHandler(fh)
+@contextmanager
+def job_context(job_id=None):
+    """
+    A context manager to set the current job context.
+    Usage:
+    with job_context("job-123"):
+        logger.info("Processing job")
+    """
+    if job_id is None:
+        job_id = str(uuid.uuid4())  # Generate a unique ID if none provided
+    previous_job_id = getattr(_thread_local, 'job_id', None)
+    _thread_local.job_id = job_id
+    try:
+        yield
+    finally:
+        if previous_job_id:
+            _thread_local.job_id = previous_job_id
+        else:
+            del _thread_local.job_id
 
-    logger.addFilter(ThreadIdFilter())
+class JobContextFilter(logging.Filter):
+    def filter(self, record):
+        record.job_id = getattr(_thread_local, 'job_id', 'No-Job')
+        record.pid = os.getpid()
+        record.tid = threading.get_native_id()
+        return True
+
+def setup_logger(name, log_file='app.log', level=logging.DEBUG):
+    logger = logging.getLogger(name)
+    
+    # Only set the level and add handlers if they haven't been set before
+    if not logger.handlers:
+        logger.setLevel(level)
+
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - [PID-%(pid)d] [TID-%(tid)d] [JOB-%(job_id)s] - %(message)s')
+
+        if os.getenv('GAE_ENV', '').startswith('standard'):
+            # App Engine setup
+            client = cloud_logging.Client()
+            handler = cloud_logging.handlers.CloudLoggingHandler(client)
+        else:
+            # Local setup
+            handler = logging.FileHandler(log_file)
+            # Also add a stream handler for console output in local development
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
+
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        # Add the JobContextFilter only once
+        job_context_filter = JobContextFilter()
+        logger.addFilter(job_context_filter)
+
     return logger
+
+# Global logger instance
+logger = setup_logger("app_logger")
+
+# Helper functions to set/clear job context
+def set_job_context(job_id):
+    _thread_local.job_id = job_id
+
+def clear_job_context():
+    if hasattr(_thread_local, 'job_id'):
+        del _thread_local.job_id
+
 
 def truncate_text(text):
     """

@@ -1,6 +1,7 @@
 # /home/bdavidriggins/Projects/clean_scrape/modules/common_logger.py
 import logging
 import os
+import threading
 from google.cloud import logging as cloud_logging
 
 def setup_logger(name, log_file='app.log', level=logging.DEBUG):
@@ -15,6 +16,11 @@ def setup_logger(name, log_file='app.log', level=logging.DEBUG):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
+    class ThreadIdFilter(logging.Filter):
+        def filter(self, record):
+            record.thread_id = threading.get_ident()
+            return True
+    
     # Check if running on App Engine
     if os.getenv('GAE_ENV', '').startswith('standard'):
         # Running on App Engine, use Cloud Logging
@@ -30,10 +36,11 @@ def setup_logger(name, log_file='app.log', level=logging.DEBUG):
         if not logger.handlers:
             fh = logging.FileHandler(log_file)
             fh.setLevel(level)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - [Thread-%(thread_id)d] - %(message)s')
             fh.setFormatter(formatter)
             logger.addHandler(fh)
 
+    logger.addFilter(ThreadIdFilter())
     return logger
 
 def truncate_text(text):

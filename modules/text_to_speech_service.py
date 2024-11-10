@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import subprocess
 from io import BytesIO
 import wave
-
+from typing import AsyncGenerator
 from pydub import AudioSegment
 import stat
 import asyncio
@@ -409,7 +409,7 @@ class TextToSpeech:
 
 
     @asynccontextmanager
-    async def _get_client(self) -> Generator[texttospeech.TextToSpeechClient, None, None]:
+    async def _get_client(self) -> AsyncGenerator[texttospeech.TextToSpeechClient, None]:
         """
         Context manager for handling the Text-to-Speech client with timeout handling.
         """
@@ -432,28 +432,17 @@ class TextToSpeech:
             )
 
             logger.debug("Creating TextToSpeechClient with configured options")
-            try:
-                client = await asyncio.to_thread(texttospeech.TextToSpeechClient, client_options=client_options)
-                yield client
-            finally:
-                if client:
-                    await asyncio.to_thread(client.close)
-            
+            client = await asyncio.to_thread(texttospeech.TextToSpeechClient, client_options=client_options)
+            yield client
+
         except Exception as e:
-            logger.error(f"Error creating TextToSpeechClient: {str(e)}", exc_info=True)
+            logger.error(f"Error creating or using TextToSpeechClient: {str(e)}", exc_info=True)
             raise
         finally:
             if client:
-                try:
-                    if hasattr(client, 'transport'):
-                        transport = client.transport
-                        if hasattr(transport, 'grpc_channel'):
-                            transport.grpc_channel.close()
-                        elif hasattr(transport, '_channel'):
-                            transport._channel.close()
-                    logger.debug("Client resources cleaned up successfully")
-                except Exception as e:
-                    logger.warning(f"Error during client cleanup: {e}")
+                # Clean up any resources if necessary
+                # Note: As of now, it seems TextToSpeechClient doesn't require explicit cleanup
+                logger.debug("TextToSpeechClient context exited")
 
 
     def _chunk_text(self, text: str, max_bytes: int = 5000) -> List[str]:

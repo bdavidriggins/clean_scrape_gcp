@@ -25,7 +25,6 @@ from modules.db_manager import (
     get_articles_with_audio_status as db_get_articles_with_audio_status
 )
 import io
-from functools import partial
 
 # Initialize the logger for the application
 logger = setup_logger("main_app")
@@ -68,14 +67,15 @@ async def get_article(article_id):
     """
     Retrieve a specific article by its ID and return it as JSON.
     """
-    try:
-        article = await get_article_by_id(article_id)
-        if article:
-            return jsonify(article)
-        return jsonify({'error': 'Article not found'}), 404
-    except Exception as e:
-        logger.error(f"Error fetching article with ID {article_id}: {e}")
-        return jsonify({'error': 'Failed to retrieve article'}), 500
+    with job_context(article_id):
+        try:
+            article = await get_article_by_id(article_id)
+            if article:
+                return jsonify(article)
+            return jsonify({'error': 'Article not found'}), 404
+        except Exception as e:
+            logger.error(f"Error fetching article with ID {article_id}: {e}")
+            return jsonify({'error': 'Failed to retrieve article'}), 500
 
 
 @app.route('/tts_article/<article_id>')
@@ -83,27 +83,26 @@ async def tts_article(article_id):
     """
     Convert article text to speech by its ID and return whether it was successful
     """
-    try:
-        # Get the article content
-        article = await get_article_by_id(article_id)
-        if not article:
-            logger.error(f"Article with ID {article_id} not found.")
-            return jsonify({'error': 'Article not found'}), 404
+    with job_context(article_id):
+        try:
+            # Get the article content
+            article = await get_article_by_id(article_id)
+            if not article:
+                logger.error(f"Article with ID {article_id} not found.")
+                return jsonify({'error': 'Article not found'}), 404
 
-        # Convert the text to speech using the article ID
-        loop = asyncio.get_running_loop()
-        conversion_success = await loop.run_in_executor(None, partial(text_to_speech, article_id))
-        
-        
-        if not conversion_success:
-            logger.error(f"Text-to-speech conversion failed for article ID {article_id}")
-            return jsonify({'error': 'Text-to-speech conversion failed'}), 500
+            # Convert the text to speech using the article ID
+            conversion_success = await text_to_speech(article_id)
+            
+            if not conversion_success:
+                logger.error(f"Text-to-speech conversion failed for article ID {article_id}")
+                return jsonify({'error': 'Text-to-speech conversion failed'}), 500
 
-        return jsonify({'success': True})
+            return jsonify({'success': True})
 
-    except Exception as e:
-        logger.error(f"Error processing text-to-speech for article ID {article_id}: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        except Exception as e:
+            logger.error(f"Error processing text-to-speech for article ID {article_id}: {e}")
+            return jsonify({'error': 'Internal server error'}), 500
 
 
 
@@ -112,6 +111,7 @@ async def process():
     """Process the submitted URL or HTML content."""
     try:
         data = await request.get_json()
+
         job_id = f"-{data['url'][-8:]}"
 
         with job_context(job_id):
@@ -192,51 +192,53 @@ async def update_article(article_id):
     """
     Update an existing article's content, title, author, and description by its ID.
     """
-    try:
-        data = await request.get_json()
-        if data is None:
-            logger.warning("No JSON data received in update request")
-            return jsonify({'error': 'Invalid input data'}), 400
+    with job_context(article_id):
+        try:
+            data = await request.get_json()
+            if data is None:
+                logger.warning("No JSON data received in update request")
+                return jsonify({'error': 'Invalid input data'}), 400
 
-        content = data.get('content')
-        title = data.get('title')
-        author = data.get('author')
-        description = data.get('description')
+            content = data.get('content')
+            title = data.get('title')
+            author = data.get('author')
+            description = data.get('description')
 
-        if not content:
-            logger.warning("Content missing in update request data")
-            return jsonify({'error': 'Content is required'}), 400
+            if not content:
+                logger.warning("Content missing in update request data")
+                return jsonify({'error': 'Content is required'}), 400
 
-        if await update_article_by_id(
-            article_id=article_id,
-            content=content,
-            title=title,
-            author=author,
-            description=description
-        ):
-            logger.info(f"Article with ID {article_id} updated successfully")
-            return jsonify({'success': True})
-        logger.error(f"Article with ID {article_id} not found for update")
-        return jsonify({'error': 'Article not found'}), 404
+            if await update_article_by_id(
+                article_id=article_id,
+                content=content,
+                title=title,
+                author=author,
+                description=description
+            ):
+                logger.info(f"Article with ID {article_id} updated successfully")
+                return jsonify({'success': True})
+            logger.error(f"Article with ID {article_id} not found for update")
+            return jsonify({'error': 'Article not found'}), 404
 
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while updating article ID {article_id}")
-        return jsonify({'error': str(e)}), 500
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred while updating article ID {article_id}")
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/delete_article/<article_id>', methods=['DELETE'])
 async def delete_article(article_id):
     """
     Delete an article by its ID.
     """
-    try:
-        if await delete_article_by_id(article_id):
-            logger.info(f"Article with ID {article_id} deleted successfully")
-            return jsonify({'success': True})
-        logger.error(f"Article with ID {article_id} not found for deletion")
-        return jsonify({'error': 'Article not found'}), 404
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while deleting article ID {article_id}")
-        return jsonify({'error': str(e)}), 500
+    with job_context(article_id): 
+        try:
+            if await delete_article_by_id(article_id):
+                logger.info(f"Article with ID {article_id} deleted successfully")
+                return jsonify({'success': True})
+            logger.error(f"Article with ID {article_id} not found for deletion")
+            return jsonify({'error': 'Article not found'}), 404
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred while deleting article ID {article_id}")
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/get_articles_with_audio_status')
 async def get_articles_with_audio_status_route():
@@ -266,42 +268,43 @@ async def audio_player(article_id):
     """
     Render the audio player page for a specific article
     """
-    try:
-        article = await get_article_by_id(article_id)
-        if not article:
+    with job_context(article_id):
+        try:
+            article = await get_article_by_id(article_id)
+            if not article:
+                return redirect('/')
+                
+            return await render_template('audio_player.html', article=article)
+        except Exception as e:
+            logger.error(f"Error loading audio player: {e}")
             return redirect('/')
-            
-        return await render_template('audio_player.html', article=article)
-    except Exception as e:
-        logger.error(f"Error loading audio player: {e}")
-        return redirect('/')
 
 @app.route('/get_audio/<article_id>')
 async def get_audio(article_id):
     """
     Stream the audio file for a specific article
     """
-    try:
-        audio_content = await get_audio_file_by_article_id(article_id)
-        if audio_content is None:
-            logger.error(f"Audio not found for article ID {article_id}")
-            return jsonify({'error': 'Audio not found'}), 404
-        
-        # Directly pass the BytesIO object without wrapping
-        return await send_file(
-            audio_content,
-            mimetype='audio/mp4',
-            as_attachment=False    # Stream the audio instead of downloading
-        )
-    except Exception as e:
-        logger.error(f"Error streaming audio for article ID {article_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+    with job_context(article_id):
+        try:
+            audio_content = await get_audio_file_by_article_id(article_id)
+            if audio_content is None:
+                logger.error(f"Audio not found for article ID {article_id}")
+                return jsonify({'error': 'Audio not found'}), 404
+            
+            # Directly pass the BytesIO object without wrapping
+            return await send_file(
+                audio_content,
+                mimetype='audio/mp4',
+                as_attachment=False    # Stream the audio instead of downloading
+            )
+        except Exception as e:
+            logger.error(f"Error streaming audio for article ID {article_id}: {e}")
+            return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
-    try:
-        import hypercorn.asyncio
-        import asyncio
-        asyncio.run(hypercorn.asyncio.serve(app, hypercorn.Config()))
+    try:        
+        app.run(host='0.0.0.0', port=5000, debug=True)
     except Exception as e:
         logger.critical(f"Failed to start the application: {e}")
+

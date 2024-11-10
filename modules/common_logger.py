@@ -51,7 +51,7 @@ def setup_logger(name, log_file='app.log', level=logging.DEBUG):
     if not logger.handlers:
         logger.setLevel(level)
 
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - [PID-%(pid)d] [TID-%(tid)d] [JOB-%(job_id)s] - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - [JOB-%(job_id)s] - %(message)s')
 
         if os.getenv('GAE_ENV', '').startswith('standard'):
             # App Engine setup

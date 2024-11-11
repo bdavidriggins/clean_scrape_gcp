@@ -26,7 +26,7 @@ from modules.db_manager import (
 )
 import io
 import datetime, random, string
-from a2wsgi import ASGItoWSGIMiddleware
+from a2wsgi import ASGIMiddleware
 
 # Initialize the logger for the application
 logger = setup_logger("main_app")
@@ -34,7 +34,7 @@ logger = setup_logger("main_app")
 # Initialize the Flask application
 app = Quart(__name__)
 # Create a WSGI application
-wsgi_app = ASGItoWSGIMiddleware(app)
+wsgi_app = ASGIMiddleware(app)
 
 @app.after_request
 def add_header(response):

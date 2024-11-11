@@ -172,8 +172,12 @@ class WebScraper:
                     else:
                         self.logger.warning(f"Cloud Run fetch failed: {result.get('error', 'Unknown error')}")
                         
+            except asyncio.TimeoutError:
+                self.logger.warning(f"Cloud Run fetch timed out after {self.config['timeout']} seconds")
             except aiohttp.ClientError as e:
                 self.logger.warning(f"Cloud Run fetch failed: {str(e)}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error during Cloud Run fetch: {str(e)}", exc_info=True)
             
             if attempt < self.config['retry_attempts'] - 1:
                 wait_time = self._calculate_backoff(attempt)

@@ -37,7 +37,6 @@ from typing import AsyncGenerator
 from pydub import AudioSegment
 import stat
 import asyncio
- 
 
 # Constants for ffmpeg
 FFMPEG_PATH = os.path.join(os.getcwd(), 'ffmpeg')
@@ -100,10 +99,7 @@ class TextToSpeech:
     PROJECT_ID: str = 'resewrch-agent'  # Replace with your GCP project ID
     LOCATION: str = 'us-central1'
     
-    def __del__(self):
-        """Destructor to ensure cleanup"""
-        self.cleanup()
-        
+
     def __init__(self) -> None:
         """
         Initializes the TextToSpeech instance by loading service account credentials.
@@ -121,7 +117,7 @@ class TextToSpeech:
         self.storage_client = storage.Client()
         self.bucket_name = 'clean-scrape-temp-bucket'
         self.bucket = self.storage_client.bucket(self.bucket_name)
-
+        self.semaphore = asyncio.Semaphore(2)  # Limit to 2 concurrent tasks
 
     def get_temp_gcs_path(self, filename: str) -> str:
         return f"tmp_audio_files/{filename}"
@@ -296,6 +292,24 @@ class TextToSpeech:
             logger.error(f"Error processing chunk {chunk_index}/{total_chunks}: {str(e)}")
             return False
 
+    async def _process_chunk_with_semaphore(self, chunk, output_file, chunk_index, total_chunks):
+        logger.info(f"Chunk {chunk_index}/{total_chunks}: Waiting for semaphore")
+        wait_start_time = time.time()
+        
+        async with self.semaphore:
+            wait_duration = time.time() - wait_start_time
+            logger.info(f"Chunk {chunk_index}/{total_chunks}: Acquired semaphore after {wait_duration:.2f} seconds")
+            
+            process_start_time = time.time()
+            try:
+                result = await self._process_chunk(chunk, output_file, chunk_index, total_chunks)
+                process_duration = time.time() - process_start_time
+                logger.info(f"Chunk {chunk_index}/{total_chunks}: Processed in {process_duration:.2f} seconds")
+                return result
+            finally:
+                total_duration = time.time() - wait_start_time
+                logger.info(f"Chunk {chunk_index}/{total_chunks}: Total time (waiting + processing): {total_duration:.2f} seconds")
+
 
     async def process_large_text(self, text: str, chunk_size: int = 5000) -> Optional[bytes]:
         try:
@@ -308,8 +322,8 @@ class TextToSpeech:
                 chunk_files = []
                 failed_chunks = 0
                 
-                tasks = [self._process_chunk(chunk, f"{temp_prefix}/chunk_{idx}.wav", idx, total_chunks)
-                        for idx, chunk in enumerate(chunks, 1)]
+                tasks = [self._process_chunk_with_semaphore(chunk, f"{temp_prefix}/chunk_{idx}.wav", idx, total_chunks)
+                         for idx, chunk in enumerate(chunks, 1)]
                 results = await asyncio.gather(*tasks)
                 
                 chunk_files = [f"{temp_prefix}/chunk_{idx}.wav" for idx, success in enumerate(results, 1) if success]
@@ -322,7 +336,6 @@ class TextToSpeech:
                     raise Exception("No valid audio chunks generated")
                 
                 final_audio = await self._combine_audio_files(chunk_files)
-
                 if final_audio is None:
                     raise Exception("Failed to combine audio files")
                     
@@ -444,6 +457,11 @@ class TextToSpeech:
                 # Note: As of now, it seems TextToSpeechClient doesn't require explicit cleanup
                 logger.debug("TextToSpeechClient context exited")
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup()
 
     def _chunk_text(self, text: str, max_bytes: int = 5000) -> List[str]:
         """
@@ -529,14 +547,16 @@ async def text_to_speech(article_id) -> bool:
         logger.info("Initializing TextToSpeech instance")
         text_converter = TextToSpeech()
 
-        # Convert text to speech based on content size
-        logger.info(f"Starting conversion for content of size {content_length} bytes")
-        if content_length <= 5000:
-            logger.info("Using single-chunk conversion method")
-            audio_response = await text_converter.convert_text_to_speech(text_content)
-        else:
-            logger.info("Using multi-chunk conversion method")
-            audio_response = await text_converter.process_large_text(text_content)
+        async with TextToSpeech() as text_converter:
+            # Convert text to speech based on content size
+            logger.info(f"Starting conversion for content of size {content_length} bytes")
+            if content_length <= 5000:
+                logger.info("Using single-chunk conversion method")
+                audio_response = await text_converter.convert_text_to_speech(text_content)
+            else:
+                logger.info("Using multi-chunk conversion method")
+                audio_response = await text_converter.process_large_text(text_content)
+
 
         if audio_response is None:
             logger.error("Text-to-speech conversion failed - audio_response is None")
